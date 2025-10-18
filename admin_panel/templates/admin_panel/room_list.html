@@ -1,0 +1,42 @@
+{% extends 'admin_panel/base.html' %}
+
+
+{% block content %}
+<table>
+    <tr>
+        <th>
+            Номер комнаты
+        </th>
+        <th>
+            Тип номера
+        </th>
+        <th>
+            Статус
+        </th>
+        <th>
+            Этаж
+        </th>
+        <th>
+            Особенности
+        </th>
+    </tr>
+{% for room in rooms %}
+    <tr>
+        <td>
+            {{room.room_number}}
+        </td>
+        <td>
+            {{room.room_type}}
+        <td>
+            {{room.status}}
+        </td>
+        <td>
+            {{room.floor}}
+        </td>
+        <td>
+            {{room.features}}
+        </td>
+    </tr>
+{% endfor %}
+</table>
+{% endblock content %}

@@ -1,0 +1,36 @@
+{% extends 'admin_panel/base.html' %}
+
+
+{% block content %}
+<table>
+    <tr>
+        <th>
+            Название
+        </th>
+        <th>
+            Описание
+        </th>
+        <th>
+            Цена за ночь
+        </th>
+        <th>
+            Вместимость
+        </th>
+    </tr>
+{% for room_type in room_types %}
+    <tr>
+        <td>
+            {{room_type.name}}
+        </td>
+        <td>
+            {{room_type.description}}
+        <td>
+            {{room_type.price_per_night}}
+        </td>
+        <td>
+            {{room_type.capacity}}
+        </td>
+    </tr>
+{% endfor %}
+</table>
+{% endblock content %}
