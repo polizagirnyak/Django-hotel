@@ -1,42 +1,97 @@
 {% extends 'admin_panel/base.html' %}
+{% load static %}
 
 
 {% block content %}
-<table>
-    <tr>
-        <th>
-            Номер комнаты
-        </th>
-        <th>
-            Тип номера
-        </th>
-        <th>
-            Статус
-        </th>
-        <th>
-            Этаж
-        </th>
-        <th>
-            Особенности
-        </th>
-    </tr>
-{% for room in rooms %}
-    <tr>
-        <td>
-            {{room.room_number}}
-        </td>
-        <td>
-            {{room.room_type}}
-        <td>
-            {{room.status}}
-        </td>
-        <td>
-            {{room.floor}}
-        </td>
-        <td>
-            {{room.features}}
-        </td>
-    </tr>
-{% endfor %}
-</table>
-{% endblock content %}
+<div class="table-header">
+    <h1>Список номеров отеля</h1>
+    <a href="{% url 'room_create' %}" class="btn btn-primary">+ Добавить номер</a>
+</div>
+
+<div class="table-container">
+    <table class="rooms-table">
+        <thead>
+            <tr>
+                <th class="col-room-number">Номер комнаты</th>
+                <th class="col-room-type">Тип номера</th>
+                <th class="col-status">Статус</th>
+                <th class="col-floor">Этаж</th>
+                <th class="col-features">Особенности</th>
+                <th class="col-actions">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for room in rooms %}
+            <tr class="room-row">
+                <td class="room-number">
+                    <span class="room-number-badge">{{ room.room_number }}</span>
+                </td>
+                <td class="room-type">
+                    <div class="room-type-info">
+                        <strong>{{ room.room_type.name }}</strong>
+                        <span class="room-price">{{ room.room_type.price_per_night }} руб./ночь</span>
+                    </div>
+                </td>
+                <td class="status-cell">
+                    <span class="status-badge status-{{ room.status }}">
+                        {{ room.get_status_display }}
+                    </span>
+                </td>
+                <td class="floor-cell">
+                    <span class="floor-badge">{{ room.floor }} этаж</span>
+                </td>
+                <td class="features-cell">
+                    {% if room.features %}
+                        <div class="features-text">{{ room.features }}</div>
+                    {% else %}
+                        <span class="no-features">—</span>
+                    {% endif %}
+                </td>
+                <td class="actions-cell">
+                    <div class="action-buttons">
+                        <a href="{% url 'room_edit' room.pk %}" class="btn-edit" title="Редактировать">
+                            ✏️
+                        </a>
+                        <a href="{% url 'room_delete' room.pk %}" class="btn-delete" title="Удалить">
+                            🗑️
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="no-rooms">
+                    <div class="empty-state">
+                        <div class="empty-icon">🏨</div>
+                        <h3>Номера не найдены</h3>
+                        <p>Добавьте первый номер в систему</p>
+                        <a href="{% url 'room_create' %}" class="btn btn-primary">Добавить номер</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="table-stats">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ rooms|length }}</div>
+            <div class="stat-label">Всего номеров</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ rooms|length }}</div>
+            <div class="stat-label">Свободно</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">0</div>
+            <div class="stat-label">Занято</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">0</div>
+            <div class="stat-label">На обслуживании</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

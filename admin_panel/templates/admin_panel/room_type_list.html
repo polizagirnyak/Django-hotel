@@ -1,36 +1,431 @@
 {% extends 'admin_panel/base.html' %}
-
+{% load static %}
 
 {% block content %}
-<table>
-    <tr>
-        <th>
-            Название
-        </th>
-        <th>
-            Описание
-        </th>
-        <th>
-            Цена за ночь
-        </th>
-        <th>
-            Вместимость
-        </th>
-    </tr>
-{% for room_type in room_types %}
-    <tr>
-        <td>
-            {{room_type.name}}
-        </td>
-        <td>
-            {{room_type.description}}
-        <td>
-            {{room_type.price_per_night}}
-        </td>
-        <td>
-            {{room_type.capacity}}
-        </td>
-    </tr>
-{% endfor %}
-</table>
-{% endblock content %}
+<div class="table-header">
+    <h1>Типы номеров отеля</h1>
+    <a href="{% url 'room_type_create' %}" class="btn btn-primary">+ Добавить тип номера</a>
+</div>
+
+<div class="table-container">
+    <table class="rooms-table">
+        <thead>
+            <tr>
+                <th class="col-name">Название</th>
+                <th class="col-description">Описание</th>
+                <th class="col-price">Цена за ночь</th>
+                <th class="col-capacity">Вместимость</th>
+                <th class="col-actions">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for room_type in room_types %}
+            <tr class="room-row">
+                <td class="type-name">
+                    <div class="type-name-content">
+                        <strong>{{ room_type.name }}</strong>
+                    </div>
+                </td>
+                <td class="type-description">
+                    {% if room_type.description %}
+                        <div class="description-text">{{ room_type.description }}</div>
+                    {% else %}
+                        <span class="no-description">—</span>
+                    {% endif %}
+                </td>
+                <td class="type-price">
+                    <span class="price-badge">{{ room_type.price_per_night }} руб.</span>
+                </td>
+                <td class="type-capacity">
+                    <span class="capacity-badge">
+                        {{ room_type.capacity }} чел.
+                    </span>
+                </td>
+                <td class="actions-cell">
+                    <div class="action-buttons">
+                        <a href="{% url 'room_type_edit' room_type.pk %}" class="btn-edit" title="Редактировать">
+                            ✏️
+                        </a>
+                        <a href="{% url 'room_type_delete' room_type.pk %}" class="btn-delete" title="Удалить">
+                            🗑️
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="no-items">
+                    <div class="empty-state">
+                        <div class="empty-icon">🏨</div>
+                        <h3>Типы номеров не найдены</h3>
+                        <p>Добавьте первый тип номера в систему</p>
+                        <a href="{% url 'room_type_create' %}" class="btn btn-primary">Добавить тип номера</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="table-stats">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ room_types|length }}</div>
+            <div class="stat-label">Всего типов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number price-range">
+                {% if room_types %}
+                    {% with min_price=room_types|dictsort:"price_per_night"|first max_price=room_types|dictsortreversed:"price_per_night"|first %}
+                        {{ min_price.price_per_night }} - {{ max_price.price_per_night }}
+                    {% endwith %}
+                {% else %}
+                    0 - 0
+                {% endif %}
+            </div>
+            <div class="stat-label">Диапазон цен</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number capacity-range">
+                {% if room_types %}
+                    {% with min_capacity=room_types|dictsort:"capacity"|first max_capacity=room_types|dictsortreversed:"capacity"|first %}
+                        {{ min_capacity.capacity }} - {{ max_capacity.capacity }}
+                    {% endwith %}
+                {% else %}
+                    0 - 0
+                {% endif %}
+            </div>
+            <div class="stat-label">Вместимость</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_rooms_count }}</div>
+            <div class="stat-label">Всего комнат</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Основные стили таблицы */
+    .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding: 0 1rem;
+    }
+
+    .table-header h1 {
+        color: #2c3e50;
+        font-size: 2rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        color: white;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .rooms-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .rooms-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .rooms-table th {
+        color: white;
+        font-weight: 600;
+        padding: 1.25rem 1rem;
+        text-align: left;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .rooms-table tbody tr {
+        border-bottom: 1px solid #f1f3f4;
+        transition: all 0.3s ease;
+    }
+
+    .rooms-table tbody tr:hover {
+        background-color: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .rooms-table td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+    }
+
+    /* Стили для ячеек */
+    .type-name strong {
+        color: #2c3e50;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .description-text {
+        color: #5d6d7e;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+    }
+
+    .no-description {
+        color: #bdc3c7;
+        font-style: italic;
+    }
+
+    .price-badge {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-block;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+
+    .capacity-badge {
+        background: #e3f2fd;
+        color: #1976d2;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-block;
+    }
+
+    /* Стили для кнопок действий */
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+
+    .btn-edit, .btn-delete {
+        padding: 0.5rem;
+        border-radius: 6px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
+    }
+
+    .btn-edit {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .btn-edit:hover {
+        background: #1976d2;
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .btn-delete {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .btn-delete:hover {
+        background: #c62828;
+        color: white;
+        transform: scale(1.1);
+    }
+
+    /* Состояние пустой таблицы */
+    .no-items {
+        text-align: center;
+        padding: 4rem 2rem !important;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        opacity: 0.7;
+    }
+
+    .empty-state h3 {
+        color: #7f8c8d;
+        margin: 0;
+        font-weight: 500;
+    }
+
+    .empty-state p {
+        color: #bdc3c7;
+        margin: 0;
+    }
+
+    /* Статистика */
+    .table-stats {
+        margin-top: 2rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        padding: 0 1rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 768px) {
+        .table-header {
+            flex-direction: column;
+            gap: 1rem;
+            text-align: center;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .rooms-table {
+            min-width: 700px;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .action-buttons {
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .btn-edit, .btn-delete {
+            width: 32px;
+            height: 32px;
+            font-size: 1rem;
+        }
+
+        .description-text {
+            max-width: 200px;
+            -webkit-line-clamp: 2;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .table-header h1 {
+            font-size: 1.5rem;
+        }
+
+        .rooms-table th,
+        .rooms-table td {
+            padding: 0.75rem 0.5rem;
+        }
+
+        .description-text {
+            max-width: 150px;
+            -webkit-line-clamp: 2;
+        }
+    }
+
+    /* Анимации */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .room-row {
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    .room-row:nth-child(even) {
+        background-color: #fafbfc;
+    }
+
+    .room-row:nth-child(even):hover {
+        background-color: #f8f9fa;
+    }
+
+    /* Специфичные стили для колонок */
+    .col-name { width: 20%; }
+    .col-description { width: 35%; }
+    .col-price { width: 15%; }
+    .col-capacity { width: 15%; }
+    .col-actions { width: 15%; }
+</style>
+{% endblock %}

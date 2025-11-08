@@ -1,17 +1,17 @@
 {% extends 'admin_panel/base.html' %}
 {% load static %}
-
+ 
 {% block content %}
 <div class="form-container">
     <div class="form-header">
-        <h1>{{ title|default:"Добавить новый тип комнаты" }}</h1>
-        <p class="form-subtitle">Создайте новую категорию номеров с уникальными характеристиками</p>
+        <h1>Редактировать тип комнаты</h1>
+        <p class="form-subtitle">Изменение категории номера: {{ room_type.name }}</p>
     </div>
-
+ 
     <div class="form-card">
         <form method="post" class="room-type-form">
             {% csrf_token %}
-
+ 
             {% if form.non_field_errors %}
             <div class="alert alert-danger">
                 {% for error in form.non_field_errors %}
@@ -19,7 +19,22 @@
                 {% endfor %}
             </div>
             {% endif %}
-
+ 
+            <!-- Текущая информация -->
+            <div class="current-info">
+                <h3>📊 Текущая информация</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <strong>Количество комнат этого типа:</strong>
+                        <span>{{ room_type.room_set.count }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Создан:</strong>
+                        <span>{% if room_type.id %}Да{% else %}Новый{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+ 
             <div class="form-grid">
                 <!-- Название типа -->
                 <div class="form-group">
@@ -34,9 +49,8 @@
                         {% endfor %}
                     </div>
                     {% endif %}
-                    <div class="form-help">Например: Стандарт, Люкс, Семейный, Президентский</div>
                 </div>
-
+ 
                 <!-- Вместимость -->
                 <div class="form-group">
                     <label for="{{ form.capacity.id_for_label }}" class="form-label">
@@ -50,9 +64,8 @@
                         {% endfor %}
                     </div>
                     {% endif %}
-                    <div class="form-help">Количество человек, которое может разместиться</div>
                 </div>
-
+ 
                 <!-- Цена за ночь -->
                 <div class="form-group">
                     <label for="{{ form.price_per_night.id_for_label }}" class="form-label">
@@ -69,11 +82,10 @@
                         {% endfor %}
                     </div>
                     {% endif %}
-                    <div class="form-help">Стоимость проживания за одну ночь</div>
                 </div>
             </div>
-
-            <!-- Описание (полная ширина) -->
+ 
+            <!-- Описание -->
             <div class="form-group full-width">
                 <label for="{{ form.description.id_for_label }}" class="form-label">
                     Описание типа номера
@@ -83,160 +95,145 @@
                 <div class="error-message">
                     {% for error in form.description.errors %}
                     <span class="error-icon">⚠</span> {{ error }}
-                    {% endfor %}
+                        {% endfor %}
                 </div>
                 {% endif %}
-                <div class="form-help">
-                    Подробно опишите особенности этого типа номеров: размер, удобства, вид из окна и т.д.
-                </div>
             </div>
-
-            <!-- Предпросмотр карточки -->
+ 
+            <!-- Предпросмотр -->
             <div class="preview-card">
-                <h3>Предпросмотр типа номера</h3>
+                <h3>Предпросмотр после изменений</h3>
                 <div class="preview-content">
                     <div class="preview-header">
-                        <span class="preview-name" id="preview-name">Название типа</span>
-                        <span class="preview-price" id="preview-price">0 ₽</span>
+                        <span class="preview-name" id="preview-name">{{ form.name.value }}</span>
+                        <span class="preview-price" id="preview-price">{{ form.price_per_night.value }} ₽</span>
                     </div>
-                    <div class="preview-capacity" id="preview-capacity">
+                    <div class="preview-capacity">
                         <span class="capacity-icon">👥</span>
-                        До <span id="preview-capacity-value">0</span> человек
+                        До <span id="preview-capacity-value">{{ form.capacity.value }}</span> человек
                     </div>
                     <div class="preview-description" id="preview-description">
-                        Описание появится здесь...
+                        {{ form.description.value|default:"Описание не указано" }}
                     </div>
                 </div>
             </div>
-
+ 
             <!-- Кнопки действия -->
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
-                    <span class="btn-icon">✓</span>
-                    {{ title|default:"Добавить тип комнаты" }}
+                    <span class="btn-icon">💾</span>
+                    Сохранить изменения
                 </button>
-                <a href="{% url 'rooms_dashboard' %}" class="btn btn-secondary">
+                <a href="{% url 'room_type_list' %}" class="btn btn-secondary">
                     <span class="btn-icon">←</span>
                     Отмена
                 </a>
+                {% if room_type.id %}
+                <a href="{% url 'room_type_delete' room_type.pk %}" class="btn btn-danger">
+                    <span class="btn-icon">🗑️</span>
+                    Удалить
+                </a>
+                {% endif %}
             </div>
         </form>
     </div>
-
-    <!-- Примеры популярных типов -->
-    <div class="examples-section">
-        <h3>Популярные типы номеров</h3>
-        <div class="examples-grid">
-            <div class="example-card" data-example='{"name": "Стандарт", "capacity": 2, "price": 2500, "description": "Комфортабельный номер с одной двуспальной кроватью, современным санузлом и рабочей зоной. Идеально подходит для деловых поездок и короткого отдыха."}'>
-                <div class="example-header">
-                    <span class="example-name">Стандарт</span>
-                    <span class="example-price">2 500 ₽</span>
-                </div>
-                <div class="example-capacity">👥 До 2 человек</div>
-                <button type="button" class="example-use-btn">Использовать</button>
-            </div>
-
-            <div class="example-card" data-example='{"name": "Люкс", "capacity": 3, "price": 5000, "description": "Просторный номер повышенной комфортности с гостиной зоной, двумя спальнями и панорамным видом. Включает мини-бар и халаты."}'>
-                <div class="example-header">
-                    <span class="example-name">Люкс</span>
-                    <span class="example-price">5 000 ₽</span>
-                </div>
-                <div class="example-capacity">👥 До 3 человек</div>
-                <button type="button" class="example-use-btn">Использовать</button>
-            </div>
-
-            <div class="example-card" data-example='{"name": "Семейный", "capacity": 4, "price": 3500, "description": "Просторный номер для семьи с двумя раздельными кроватями и дополнительным диваном. Игровая зона для детей, холодильник."}'>
-                <div class="example-header">
-                    <span class="example-name">Семейный</span>
-                    <span class="example-price">3 500 ₽</span>
-                </div>
-                <div class="example-capacity">👥 До 4 человек</div>
-                <button type="button" class="example-use-btn">Использовать</button>
-            </div>
-
-            <div class="example-card" data-example='{"name": "Эконом", "capacity": 1, "price": 1500, "description": "Компактный номер с односпальной кроватью для непродолжительного проживания. Все необходимое для комфортного отдыха."}'>
-                <div class="example-header">
-                    <span class="example-name">Эконом</span>
-                    <span class="example-price">1 500 ₽</span>
-                </div>
-                <div class="example-capacity">👥 До 1 человека</div>
-                <button type="button" class="example-use-btn">Использовать</button>
-            </div>
-        </div>
-    </div>
 </div>
-
+ 
 <style>
-    /* Основные стили (аналогично форме комнаты) */
     .form-container {
         max-width: 800px;
         margin: 0 auto;
         padding: 2rem 1rem;
     }
-
+ 
     .form-header {
         text-align: center;
         margin-bottom: 2rem;
     }
-
+ 
     .form-header h1 {
         color: #2c3e50;
         font-size: 2.25rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
     }
-
+ 
     .form-subtitle {
         color: #7f8c8d;
         font-size: 1.1rem;
         margin: 0;
     }
-
+ 
     .form-card {
         background: white;
         border-radius: 16px;
         padding: 2.5rem;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         border: 1px solid #f1f3f4;
+    }
+ 
+    /* Текущая информация */
+    .current-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
         margin-bottom: 2rem;
     }
-
+ 
+    .current-info h3 {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+ 
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+ 
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+ 
+    .info-item:last-child {
+        border-bottom: none;
+    }
+ 
     .form-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1.5rem;
         margin-bottom: 1.5rem;
     }
-
+ 
     .form-group {
         display: flex;
         flex-direction: column;
     }
-
+ 
     .form-group.full-width {
         grid-column: 1 / -1;
     }
-
+ 
     .form-label {
         color: #2c3e50;
         font-weight: 600;
         margin-bottom: 0.5rem;
         font-size: 0.95rem;
     }
-
+ 
     .form-label::after {
         content: '*';
         color: #e74c3c;
         margin-left: 0.25rem;
     }
-
-    /* Стили для полей ввода */
+ 
+    /* Поля ввода */
     .room-type-form input,
-    .room-type-form select,
     .room-type-form textarea {
         padding: 0.75rem 1rem;
         border: 2px solid #e9ecef;
@@ -247,27 +244,25 @@
         width: 100%;
         box-sizing: border-box;
     }
-
+ 
     .room-type-form input:focus,
-    .room-type-form select:focus,
     .room-type-form textarea:focus {
         outline: none;
         border-color: #667eea;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
-
+ 
     .room-type-form textarea {
         min-height: 100px;
         resize: vertical;
         line-height: 1.5;
-        font-family: inherit;
     }
-
-    /* Контейнер для цены с валютой */
+ 
+    /* Контейнер для цены */
     .price-input-container {
         position: relative;
     }
-
+ 
     .price-currency {
         position: absolute;
         right: 1rem;
@@ -276,11 +271,11 @@
         color: #7f8c8d;
         font-weight: 600;
     }
-
+ 
     .room-type-form input[type="number"] {
         padding-right: 3rem;
     }
-
+ 
     /* Предпросмотр */
     .preview-card {
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -289,22 +284,21 @@
         padding: 1.5rem;
         margin: 2rem 0;
     }
-
+ 
     .preview-card h3 {
         color: #495057;
         font-size: 1rem;
         margin-bottom: 1rem;
         text-align: center;
-        font-weight: 600;
     }
-
+ 
     .preview-content {
         background: white;
         border-radius: 8px;
         padding: 1.5rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-
+ 
     .preview-header {
         display: flex;
         justify-content: space-between;
@@ -313,13 +307,13 @@
         padding-bottom: 0.75rem;
         border-bottom: 1px solid #f1f3f4;
     }
-
+ 
     .preview-name {
         font-size: 1.25rem;
         font-weight: 700;
         color: #2c3e50;
     }
-
+ 
     .preview-price {
         font-size: 1.1rem;
         font-weight: 700;
@@ -328,122 +322,24 @@
         padding: 0.25rem 0.75rem;
         border-radius: 20px;
     }
-
+ 
     .preview-capacity {
         color: #667eea;
         font-weight: 500;
         margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
     }
-
+ 
     .capacity-icon {
         font-size: 1.1rem;
     }
-
+ 
     .preview-description {
         color: #5d6d7e;
         line-height: 1.5;
         font-size: 0.9rem;
     }
-
-    /* Примеры типов номеров */
-    .examples-section {
-        margin-top: 3rem;
-    }
-
-    .examples-section h3 {
-        color: #2c3e50;
-        font-size: 1.5rem;
-        margin-bottom: 1.5rem;
-        text-align: center;
-    }
-
-    .examples-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-    }
-
-    .example-card {
-        background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 12px;
-        padding: 1.25rem;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-
-    .example-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        border-color: #667eea;
-    }
-
-    .example-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
-
-    .example-name {
-        font-weight: 600;
-        color: #2c3e50;
-    }
-
-    .example-price {
-        font-weight: 700;
-        color: #4CAF50;
-        font-size: 0.9rem;
-    }
-
-    .example-capacity {
-        color: #667eea;
-        font-size: 0.85rem;
-        margin-bottom: 1rem;
-    }
-
-    .example-use-btn {
-        width: 100%;
-        padding: 0.5rem;
-        background: #667eea;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .example-use-btn:hover {
-        background: #5a6fd8;
-        transform: translateY(-1px);
-    }
-
-    /* Сообщения об ошибках и подсказки */
-    .error-message {
-        color: #e74c3c;
-        font-size: 0.85rem;
-        margin-top: 0.5rem;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
-
-    .error-icon {
-        font-size: 0.8rem;
-    }
-
-    .form-help {
-        color: #7f8c8d;
-        font-size: 0.85rem;
-        margin-top: 0.5rem;
-        line-height: 1.4;
-    }
-
-    /* Кнопки действий */
+ 
+    /* Кнопки */
     .form-actions {
         display: flex;
         gap: 1rem;
@@ -452,7 +348,7 @@
         padding-top: 2rem;
         border-top: 1px solid #f1f3f4;
     }
-
+ 
     .btn {
         padding: 0.875rem 2rem;
         border: none;
@@ -469,87 +365,85 @@
         min-width: 160px;
         justify-content: center;
     }
-
+ 
     .btn-primary {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
-
+ 
     .btn-primary:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
-
+ 
     .btn-secondary {
         background: white;
         color: #667eea;
         border: 2px solid #667eea;
     }
-
+ 
     .btn-secondary:hover {
         background: #667eea;
         color: white;
     }
-
+ 
+    .btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+ 
+    .btn-danger:hover {
+        background: #c0392b;
+    }
+ 
     .btn-icon {
         font-size: 1.1rem;
     }
-
+ 
+    /* Сообщения об ошибках */
+    .error-message {
+        color: #e74c3c;
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+ 
+    .error-icon {
+        font-size: 0.8rem;
+    }
+ 
     /* Адаптивность */
     @media (max-width: 768px) {
         .form-container {
             padding: 1rem 0.5rem;
         }
-
+ 
         .form-card {
             padding: 1.5rem;
         }
-
+ 
         .form-grid {
             grid-template-columns: 1fr;
             gap: 1rem;
         }
-
+ 
         .form-actions {
             flex-direction: column;
         }
-
+ 
         .btn {
             min-width: auto;
             width: 100%;
         }
-
-        .examples-grid {
+ 
+        .info-grid {
             grid-template-columns: 1fr;
         }
     }
-
-    /* Анимации */
-    @keyframes slideIn {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .form-card {
-        animation: slideIn 0.6s ease-out;
-    }
-
-    .preview-card {
-        animation: slideIn 0.8s ease-out;
-    }
-
-    .example-card {
-        animation: slideIn 0.6s ease-out;
-    }
 </style>
-
+ 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Элементы формы
@@ -557,51 +451,29 @@
         const capacityInput = document.getElementById('{{ form.capacity.id_for_label }}');
         const priceInput = document.getElementById('{{ form.price_per_night.id_for_label }}');
         const descriptionInput = document.getElementById('{{ form.description.id_for_label }}');
-
+ 
         // Элементы предпросмотра
         const previewName = document.getElementById('preview-name');
         const previewCapacity = document.getElementById('preview-capacity-value');
         const previewPrice = document.getElementById('preview-price');
         const previewDescription = document.getElementById('preview-description');
-
+ 
         // Обновление предпросмотра
         function updatePreview() {
             previewName.textContent = nameInput.value || 'Название типа';
             previewCapacity.textContent = capacityInput.value || '0';
             previewPrice.textContent = (priceInput.value || '0') + ' ₽';
-            previewDescription.textContent = descriptionInput.value || 'Описание появится здесь...';
+            previewDescription.textContent = descriptionInput.value || 'Описание не указано';
         }
-
+ 
         // Слушатели событий
         nameInput.addEventListener('input', updatePreview);
         capacityInput.addEventListener('input', updatePreview);
         priceInput.addEventListener('input', updatePreview);
         descriptionInput.addEventListener('input', updatePreview);
-
+ 
         // Инициализация предпросмотра
         updatePreview();
-
-        // Обработчики для примеров
-        document.querySelectorAll('.example-use-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const card = this.closest('.example-card');
-                const exampleData = JSON.parse(card.getAttribute('data-example'));
-
-                // Заполняем форму данными из примера
-                nameInput.value = exampleData.name;
-                capacityInput.value = exampleData.capacity;
-                priceInput.value = exampleData.price;
-                descriptionInput.value = exampleData.description;
-
-                // Обновляем предпросмотр
-                updatePreview();
-
-                // Плавная прокрутка к форме
-                document.querySelector('.form-card').scrollIntoView({
-                    behavior: 'smooth'
-                });
-            });
-        });
     });
 </script>
 {% endblock %}

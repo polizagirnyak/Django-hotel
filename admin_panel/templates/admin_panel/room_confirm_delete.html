@@ -1,0 +1,215 @@
+{% extends 'admin_panel/base.html' %}
+{% load static %}
+ 
+ 
+{% block content %}
+<div class="delete-container">
+    <div class="delete-card">
+        <div class="delete-header">
+            <div class="delete-icon">🗑️</div>
+            <h1>Подтверждение удаления</h1>
+        </div>
+ 
+        <div class="delete-content">
+            <div class="object-info">
+                <h3>Комната: {{ object.room_number }}</h3>
+                <div class="object-details">
+                    <p><strong>Тип:</strong> {{ object.room_type.name }}</p>
+                    <p><strong>Этаж:</strong> {{ object.floor }}</p>
+                    <p><strong>Статус:</strong> 
+                        <span class="status-badge status-{{ object.status }}">
+                            {{ object.get_status_display }}
+                        </span>
+                    </p>
+                    <p><strong>Особенности:</strong> {{ object.features|default:"—" }}</p>
+                </div>
+            </div>
+ 
+            {% if active_bookings %}
+            <div class="error-message">
+                <div class="error-icon">❌</div>
+                <div class="error-content">
+                    <h4>Невозможно удалить комнату!</h4>
+                    <p>У этой комнаты есть активные бронирования. Сначала необходимо завершить или отменить все бронирования для этой комнаты.</p>
+                    <div class="action-buttons">
+                        <a href="{% url 'room_list' %}" class="btn btn-secondary">
+                            Вернуться к списку
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="confirmation-message">
+                <p>Вы уверены, что хотите удалить эту комнату?</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-danger">
+                            Да, удалить
+                        </button>
+                        <a href="{% url 'room_list' %}" class="btn btn-secondary">
+                            Отмена
+                        </a>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+ 
+<style>
+    .delete-container {
+        max-width: 600px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+ 
+    .delete-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+ 
+    .delete-header {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+ 
+    .delete-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+ 
+    .delete-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+ 
+    .delete-content {
+        padding: 2rem;
+    }
+ 
+    .object-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+ 
+    .object-info h3 {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+    }
+ 
+    .object-details p {
+        margin: 0.5rem 0;
+        color: #5d6d7e;
+    }
+ 
+    .status-badge {
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+ 
+    .status-available {
+        background: #e8f5e8;
+        color: #2e7d32;
+    }
+ 
+    .status-occupied {
+        background: #ffebee;
+        color: #c62828;
+    }
+ 
+    .status-maintenance {
+        background: #fff3e0;
+        color: #ef6c00;
+    }
+ 
+    .error-message {
+        background: #ffebee;
+        border: 1px solid #e74c3c;
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+ 
+    .error-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+ 
+    .error-content h4 {
+        color: #c62828;
+        margin-bottom: 1rem;
+    }
+ 
+    .confirmation-message {
+        text-align: center;
+        padding: 2rem 0;
+    }
+ 
+    .confirmation-message p {
+        font-size: 1.1rem;
+        color: #2c3e50;
+        margin-bottom: 2rem;
+    }
+ 
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+    }
+ 
+    .btn {
+        padding: 0.75rem 2rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 150px;
+    }
+ 
+    .btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+ 
+    .btn-danger:hover {
+        background: #c0392b;
+        transform: translateY(-2px);
+    }
+ 
+    .btn-secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+    }
+ 
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+    }
+ 
+    @media (max-width: 768px) {
+        .action-buttons {
+            flex-direction: column;
+        }
+ 
+        .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}

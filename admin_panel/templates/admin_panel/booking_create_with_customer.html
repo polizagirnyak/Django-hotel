@@ -1,0 +1,655 @@
+{% extends 'admin_panel/base.html' %}
+{% load static %}
+ 
+{% block content %}
+<div class="form-container">
+    <div class="form-header">
+        <h1>Новое бронирование</h1>
+        <p class="form-subtitle">Создание бронирования с выбором свободного номера и информацией о клиенте</p>
+    </div>
+ 
+    <!-- Форма поиска свободных номеров -->
+    <div class="search-card">
+        <h3>📅 Поиск свободных номеров</h3>
+        <form method="get" class="search-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="check_in" class="form-label">Дата заезда *</label>
+                    <input type="date" name="check_in" id="check_in" class="form-control"
+                           value="{{ check_in_date|default:'' }}" required
+                           min="{{ today|date:'Y-m-d' }}">
+                </div>
+                <div class="form-group">
+                    <label for="check_out" class="form-label">Дата выезда *</label>
+                    <input type="date" name="check_out" id="check_out" class="form-control"
+                           value="{{ check_out_date|default:'' }}" required
+                           min="{{ today|date:'Y-m-d' }}">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                🔍 Найти свободные номера
+            </button>
+        </form>
+    </div>
+ 
+    {% if check_in_date and check_out_date %}
+    <form method="post" class="booking-form">
+        {% csrf_token %}
+ 
+        <div class="form-columns">
+            <!-- Информация о клиенте -->
+            <div class="form-column">
+                <div class="form-section">
+                    <h3>👤 Информация о клиенте</h3>
+ 
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="{{ customer_form.first_name.id_for_label }}" class="form-label">
+                                Имя *
+                            </label>
+                            {{ customer_form.first_name }}
+                            {% if customer_form.first_name.errors %}
+                            <div class="error-message">
+                                {% for error in customer_form.first_name.errors %}
+                                <span class="error-icon">⚠</span> {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+ 
+                        <div class="form-group">
+                            <label for="{{ customer_form.last_name.id_for_label }}" class="form-label">
+                                Фамилия *
+                            </label>
+                            {{ customer_form.last_name }}
+                            {% if customer_form.last_name.errors %}
+                            <div class="error-message">
+                                {% for error in customer_form.last_name.errors %}
+                                <span class="error-icon">⚠</span> {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+ 
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="{{ customer_form.email.id_for_label }}" class="form-label">
+                                Email *
+                            </label>
+                            {{ customer_form.email }}
+                            {% if customer_form.email.errors %}
+                            <div class="error-message">
+                                {% for error in customer_form.email.errors %}
+                                <span class="error-icon">⚠</span> {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+ 
+                        <div class="form-group">
+                            <label for="{{ customer_form.phone.id_for_label }}" class="form-label">
+                                Телефон *
+                            </label>
+                            {{ customer_form.phone }}
+                            {% if customer_form.phone.errors %}
+                            <div class="error-message">
+                                {% for error in customer_form.phone.errors %}
+                                <span class="error-icon">⚠</span> {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+ 
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="{{ customer_form.passport_number.id_for_label }}" class="form-label">
+                                Паспорт *
+                            </label>
+                            {{ customer_form.passport_number }}
+                            {% if customer_form.passport_number.errors %}
+                            <div class="error-message">
+                                {% for error in customer_form.passport_number.errors %}
+                                <span class="error-icon">⚠</span> {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+ 
+                        <div class="form-group">
+                            <label for="{{ customer_form.birthday.id_for_label }}" class="form-label">
+                                Дата рождения *
+                            </label>
+                            {{ customer_form.birthday }}
+                            {% if customer_form.birthday.errors %}
+                            <div class="error-message">
+                                {% for error in customer_form.birthday.errors %}
+                                <span class="error-icon">⚠</span> {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+ 
+            <!-- Информация о бронировании -->
+            <div class="form-column">
+                <div class="form-section">
+                    <h3>🏨 Информация о бронировании</h3>
+ 
+                    <!-- Даты бронирования -->
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="{{ booking_form.check_in_date.id_for_label }}" class="form-label">
+                                Дата заезда *
+                            </label>
+                            <input type="date" name="check_in_date" id="id_check_in_date"
+                                   class="form-control" value="{{ check_in_date }}" readonly>
+                        </div>
+ 
+                        <div class="form-group">
+                            <label for="{{ booking_form.check_out_date.id_for_label }}" class="form-label">
+                                Дата выезда *
+                            </label>
+                            <input type="date" name="check_out_date" id="id_check_out_date"
+                                   class="form-control" value="{{ check_out_date }}" readonly>
+                        </div>
+                    </div>
+ 
+                    <!-- Выбор номера -->
+                    <div class="form-group">
+                        <label for="{{ booking_form.room.id_for_label }}" class="form-label">
+                            Выберите номер *
+                        </label>
+                        {{ booking_form.room }}
+                        {% if booking_form.room.errors %}
+                        <div class="error-message">
+                            {% for error in booking_form.room.errors %}
+                            <span class="error-icon">⚠</span> {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+ 
+                        {% if available_rooms %}
+                            <div class="available-rooms-info">
+                                <small>Найдено свободных номеров: {{ available_rooms.count }}</small>
+                            </div>
+                        {% endif %}
+                    </div>
+ 
+                    <!-- Особые пожелания -->
+                    <div class="form-group">
+                        <label for="{{ booking_form.special_requests.id_for_label }}" class="form-label">
+                            Особые пожелания
+                        </label>
+                        {{ booking_form.special_requests }}
+                    </div>
+ 
+                    <!-- Предварительный расчет -->
+                    <div class="price-calculation">
+                        <h4>💰 Расчет стоимости</h4>
+                        <div class="price-details">
+                            <div class="price-row">
+                                <span>Количество ночей:</span>
+                                <span id="nights-count">0</span>
+                            </div>
+                            <div class="price-row">
+                                <span>Цена за ночь:</span>
+                                <span id="price-per-night">0 руб.</span>
+                            </div>
+                            <div class="price-row total">
+                                <strong>Общая стоимость:</strong>
+                                <strong id="total-price">0 руб.</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+ 
+        <!-- Кнопки действия -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <span class="btn-icon">✓</span>
+                Создать бронирование
+            </button>
+            <a href="{% url 'rooms_dashboard' %}" class="btn btn-secondary">
+                <span class="btn-icon">←</span>
+                Отмена
+            </a>
+        </div>
+    </form>
+    {% endif %}
+ 
+    <!-- Список доступных номеров -->
+    {% if available_rooms %}
+    <div class="available-rooms-section">
+        <h3>🛏️ Доступные номера</h3>
+        <div class="rooms-grid">
+            {% for room in available_rooms %}
+            <div class="room-card" data-room-id="{{ room.id }}" data-price="{{ room.room_type.price_per_night }}">
+                <div class="room-header">
+                    <span class="room-number">{{ room.room_number }}</span>
+                    <span class="room-price">{{ room.room_type.price_per_night }} руб./ночь</span>
+                </div>
+                <div class="room-type">{{ room.room_type.name }}</div>
+                <div class="room-details">
+                    <span class="room-capacity">👥 {{ room.room_type.capacity }} чел.</span>
+                    <span class="room-floor">🏢 {{ room.floor }} этаж</span>
+                </div>
+                {% if room.features %}
+                <div class="room-features">
+                    <strong>Особенности:</strong> {{ room.features }}
+                </div>
+                {% endif %}
+                <button type="button" class="select-room-btn" onclick="selectRoom({{ room.id }})">
+                    Выбрать этот номер
+                </button>
+            </div>
+            {% empty %}
+            <div class="no-rooms">
+                <p>На выбранные даты свободных номеров не найдено.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+ 
+<style>
+    /* Основные стили */
+    .form-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+ 
+    .form-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+ 
+    .form-header h1 {
+        color: #2c3e50;
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+ 
+    .form-subtitle {
+        color: #7f8c8d;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+ 
+    /* Карточка поиска */
+    .search-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        border-left: 4px solid #667eea;
+    }
+ 
+    .search-card h3 {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+    }
+ 
+    /* Колонки формы */
+    .form-columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+ 
+    .form-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        height: fit-content;
+    }
+ 
+    .form-section h3 {
+        color: #2c3e50;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #f1f3f4;
+    }
+ 
+    /* Сетка формы */
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+ 
+    .form-group {
+        margin-bottom: 1rem;
+    }
+ 
+    .form-label {
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: block;
+        font-size: 0.9rem;
+    }
+ 
+    /* Поля ввода */
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-sizing: border-box;
+    }
+ 
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+ 
+    /* Расчет стоимости */
+    .price-calculation {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+ 
+    .price-calculation h4 {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+    }
+ 
+    .price-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+ 
+    .price-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+    }
+ 
+    .price-row.total {
+        border-top: 1px solid #dee2e6;
+        padding-top: 0.75rem;
+        margin-top: 0.5rem;
+        font-size: 1.1rem;
+        color: #2c3e50;
+    }
+ 
+    /* Сетка доступных номеров */
+    .available-rooms-section {
+        margin-top: 2rem;
+    }
+ 
+    .rooms-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+ 
+    .room-card {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        transition: all 0.3s ease;
+    }
+ 
+    .room-card:hover {
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+ 
+    .room-card.selected {
+        border-color: #4CAF50;
+        background: #f8fff8;
+    }
+ 
+    .room-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+ 
+    .room-number {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+ 
+    .room-price {
+        font-weight: 600;
+        color: #4CAF50;
+    }
+ 
+    .room-type {
+        font-weight: 600;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+ 
+    .room-details {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+ 
+    .room-features {
+        font-size: 0.85rem;
+        color: #5d6d7e;
+        margin-bottom: 1rem;
+    }
+ 
+    .select-room-btn {
+        width: 100%;
+        padding: 0.5rem;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+ 
+    .select-room-btn:hover {
+        background: #5a6fd8;
+    }
+ 
+    /* Кнопки */
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+ 
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+ 
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+ 
+    .btn-secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+    }
+ 
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+    }
+ 
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+ 
+    /* Сообщения об ошибках */
+    .error-message {
+        color: #e74c3c;
+        font-size: 0.85rem;
+        margin-top: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+ 
+    .error-icon {
+        font-size: 0.8rem;
+    }
+ 
+    /* Адаптивность */
+    @media (max-width: 768px) {
+        .form-columns {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+ 
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+ 
+        .rooms-grid {
+            grid-template-columns: 1fr;
+        }
+ 
+        .form-actions {
+            flex-direction: column;
+        }
+    }
+</style>
+ 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkInInput = document.getElementById('check_in');
+        const checkOutInput = document.getElementById('check_out');
+        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+ 
+        // Обновление минимальной даты выезда
+        if (checkInInput) {
+            checkInInput.addEventListener('change', function() {
+                if (checkOutInput) {
+                    checkOutInput.min = this.value;
+                    if (checkOutInput.value && checkOutInput.value < this.value) {
+                        checkOutInput.value = '';
+                    }
+                }
+            });
+        }
+ 
+        // Расчет стоимости при выборе номера
+        if (roomSelect) {
+            roomSelect.addEventListener('change', calculatePrice);
+        }
+ 
+        // Инициализация расчета
+        calculatePrice();
+    });
+ 
+    function calculatePrice() {
+        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+        const checkIn = document.getElementById('id_check_in_date').value;
+        const checkOut = document.getElementById('id_check_out_date').value;
+        const nightsCount = document.getElementById('nights-count');
+        const pricePerNight = document.getElementById('price-per-night');
+        const totalPrice = document.getElementById('total-price');
+ 
+        if (!checkIn || !checkOut || !roomSelect.value) {
+            nightsCount.textContent = '0';
+            pricePerNight.textContent = '0 руб.';
+            totalPrice.textContent = '0 руб.';
+            return;
+        }
+ 
+        const start = new Date(checkIn);
+        const end = new Date(checkOut);
+        const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+ 
+        // Получаем цену из выбранного option
+        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+        const roomPrice = selectedOption.getAttribute('data-price') || '0';
+ 
+        const total = nights * parseFloat(roomPrice);
+ 
+        nightsCount.textContent = nights;
+        pricePerNight.textContent = roomPrice + ' руб.';
+        totalPrice.textContent = total.toFixed(2) + ' руб.';
+    }
+ 
+    function selectRoom(roomId) {
+        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+        roomSelect.value = roomId;
+ 
+        // Снимаем выделение со всех карточек
+        document.querySelectorAll('.room-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+ 
+        // Выделяем выбранную карточку
+        const selectedCard = document.querySelector(`[data-room-id="${roomId}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+ 
+        // Пересчитываем стоимость
+        calculatePrice();
+ 
+        // Прокручиваем к форме
+        document.querySelector('.booking-form').scrollIntoView({
+            behavior: 'smooth'
+        });
+    }
+ 
+    // Добавляем data-price к options при загрузке
+    document.addEventListener('DOMContentLoaded', function() {
+        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+        if (roomSelect) {
+            // Находим все карточки номеров и добавляем данные в select
+            document.querySelectorAll('.room-card').forEach(card => {
+                const roomId = card.getAttribute('data-room-id');
+                const roomPrice = card.getAttribute('data-price');
+                const option = roomSelect.querySelector(`option[value="${roomId}"]`);
+                if (option) {
+                    option.setAttribute('data-price', roomPrice);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

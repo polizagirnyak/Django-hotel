@@ -1,0 +1,227 @@
+{% extends 'admin_panel/base.html' %}
+{% load static %}
+ 
+{% block content %}
+<div class="delete-container">
+    <div class="delete-card">
+        <div class="delete-header">
+            <div class="delete-icon">🗑️</div>
+            <h1>Подтверждение удаления</h1>
+        </div>
+ 
+        <div class="delete-content">
+            <div class="object-info">
+                <h3>Тип комнаты: {{ object.name }}</h3>
+                <div class="object-details">
+                    <p><strong>Цена за ночь:</strong> {{ object.price_per_night }} руб.</p>
+                    <p><strong>Вместимость:</strong> {{ object.capacity }} чел.</p>
+                    <p><strong>Описание:</strong> {{ object.description|default:"—" }}</p>
+                </div>
+            </div>
+ 
+            {% if rooms_count > 0 %}
+            <div class="warning-message">
+                <div class="warning-icon">⚠️</div>
+                <div class="warning-content">
+                    <h4>Внимание!</h4>
+                    <p>Существует <strong>{{ rooms_count }}</strong> комнат этого типа. При удалении необходимо выбрать новый тип для этих комнат.</p>
+ 
+                    <form method="post" class="migration-form">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="new_room_type" class="form-label">Выберите новый тип для комнат:</label>
+                            <select name="new_room_type" id="new_room_type" class="form-control" required>
+                                <option value="">-- Выберите тип --</option>
+                                {% for room_type in other_room_types %}
+                                <option value="{{ room_type.pk }}">{{ room_type.name }} ({{ room_type.price_per_night }} руб.)</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="action-buttons">
+                            <button type="submit" class="btn btn-danger">
+                                Переместить и удалить
+                            </button>
+                            <a href="{% url 'room_type_list' %}" class="btn btn-secondary">
+                                Отмена
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="confirmation-message">
+                <p>Вы уверены, что хотите удалить этот тип комнаты?</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-danger">
+                            Да, удалить
+                        </button>
+                        <a href="{% url 'room_type_list' %}" class="btn btn-secondary">
+                            Отмена
+                        </a>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+ 
+<style>
+    .delete-container {
+        max-width: 600px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+ 
+    .delete-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+ 
+    .delete-header {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+ 
+    .delete-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+ 
+    .delete-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+ 
+    .delete-content {
+        padding: 2rem;
+    }
+ 
+    .object-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+ 
+    .object-info h3 {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+    }
+ 
+    .object-details p {
+        margin: 0.5rem 0;
+        color: #5d6d7e;
+    }
+ 
+    .warning-message {
+        background: #fff3e0;
+        border: 1px solid #ffb74d;
+        border-radius: 8px;
+        padding: 1.5rem;
+    }
+ 
+    .warning-icon {
+        font-size: 2rem;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+ 
+    .warning-content h4 {
+        color: #ef6c00;
+        margin-bottom: 1rem;
+    }
+ 
+    .confirmation-message {
+        text-align: center;
+        padding: 2rem 0;
+    }
+ 
+    .confirmation-message p {
+        font-size: 1.1rem;
+        color: #2c3e50;
+        margin-bottom: 2rem;
+    }
+ 
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+ 
+    .form-label {
+        display: block;
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+ 
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 1rem;
+    }
+ 
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+ 
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+ 
+    .btn {
+        padding: 0.75rem 2rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 150px;
+    }
+ 
+    .btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+ 
+    .btn-danger:hover {
+        background: #c0392b;
+        transform: translateY(-2px);
+    }
+ 
+    .btn-secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+    }
+ 
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+    }
+ 
+    @media (max-width: 768px) {
+        .action-buttons {
+            flex-direction: column;
+        }
+ 
+        .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
