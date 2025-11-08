@@ -50,7 +50,7 @@
                     <select name="status" id="status" class="form-control">
                         <option value="">Все статусы</option>
                         {% for status_value, status_name in booking_statuses %}
-                        <option value="{{ statuпшis_value }}" {% if status_filter == status_value %}selected{% endif %}>
+                        <option value="{{ status_value }}" {% if status_filter == status_value %}selected{% endif %}>
                             {{ status_name }}
                         </option>
                         {% endfor %}
@@ -184,10 +184,10 @@
 
                             <!-- Основные действия -->
                             <div class="main-actions">
-                                <a href="" class="btn-action btn-edit" title="Редактировать">
+                                <a href="{% url 'booking_edit' booking.pk %}" class="btn-action btn-edit" title="Редактировать">
                                     ✏️
                                 </a>
-                                <a href="" class="btn-action btn-delete" title="Удалить">
+                                <a href="{% url 'booking_delete' booking.pk %}" class="btn-action btn-delete" title="Удалить">
                                     🗑️
                                 </a>
                             </div>

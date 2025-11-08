@@ -346,3 +346,94 @@ def booking_list(request):
         'active_bookings': active_bookings
     }
     return render(request, 'admin_panel/booking_list.html', context=context)
+
+def booking_edit(request, pk):
+    #Редактирование существующего бронирования
+    booking = get_object_or_404(Booking, pk = pk )
+    if request.method == 'POST':
+        form = BookingEditForm(request.POST, instance=booking)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    updated_booking = form.save(commit=False)
+                    #Пересчет стоимости при изменении дат или комнаты
+                    if any(field in form.changed_data for field in ['check_in_date', 'check_out_date', 'room']):
+                        nights = (updated_booking.check_out_date - updated_booking.check_in_date).days
+                        total_price = nights*updated_booking.room.room_type.price_per_night
+                        updated_booking.total_price = total_price
+                    #Если изменилась комната, обноявляем статусы
+                    if 'room' in form.changed_data:
+                        #Старую комнату обсвобождаем, если она была занята
+                        old_room = Room.objects.get(pk=booking.room.pk)
+                        if booking.status == 'checked_in':
+                            old_room.status = 'available'
+                            old_room.save()
+                        #Новую комнату помечаем как занятую
+                        if updated_booking.status == 'checked_in':
+                            updated_booking.room.status = 'occupied'
+                            updated_booking.room.save()
+                    updated_booking.save()
+                    messages.success(request, 'Бронироввание успешно обновлено')
+                    return redirect('booking_list')
+            except Exception as e:
+                messages.error(request, f'Ошибка при обновлении бонирования {str(e)}')
+    else:
+        form = BookingEditForm(instance=booking)
+    context = {
+        'form': form,
+        'booking': booking
+    }
+    return render(request, 'admin_panel/booking_edit.html', context=context)
+
+
+def booking_dashboard(request):
+    today = date.today()
+    #Статистика бронирований
+    total_bookings = Booking.objects.count()
+    active_bookings = Booking.objects.filter(status__in = ['confirmed', 'checked_in', 'awaiting_payment']).count()
+
+    #Бронирования на сегодня
+    today_checkins = Booking.objects.filter(status__in = ['confirmed', 'awaiting_payment'], check_in_date = today).count()
+    today_checkouts = Booking.objects.filter(status = 'checked_in', check_out_date = today).count()
+
+    #Предстоящие бронирования(7дней)
+    upcoming_checkins = Booking.objects.filter(
+        check_in_date__range = [today, today+timedelta(days=7)],
+        status__in = ['confirmed', 'awaiting_payment']
+    ).count()
+
+    #Статистика по статусам
+    status_stats = Booking.objects.values('status').annotate(count=Count('id')).order_by('status')
+
+    #Последние бронирования
+    recent_bookings = Booking.objects.select_related('customer', 'room', 'room__room_type').order_by('-created_at')[:5]
+
+    #Бронирования, требующие внимания
+    attention_bookings = Booking.objects.filter(
+        Q(status='awaiting_payment')|
+        Q(check_in_date=today, status='confirmed')
+    ).select_related('customer', 'room')[:3]
+    context = {
+        'total_bookings':total_bookings,
+        'active_bookings':active_bookings,
+        'today_checkins':today_checkins,
+        'today_checkouts':today_checkouts,
+        'upcoming_checkins':upcoming_checkins,
+        'status_stats':status_stats,
+        'recent_bookings':recent_bookings,
+        'attention_bookings':attention_bookings,
+        'today':today
+    }
+    return render(request, 'admin_panel/booking_dashboard.html', context=context)
+
+def booking_delete(request, pk):
+    booking = get_object_or_404(Booking, pk=pk)
+    if request.method == 'POST':
+        #Освобождаем комнату, если она была занята
+        if booking.status == 'checked_in':
+            booking.room.status = 'available'
+            booking.room.save()
+        booking.delete()
+        messages.success(request, 'Бронирование успешно удалено')
+        return redirect('booking_list')
+    return render(request, 'admin_panel/confirm_delete.html', context={'object':booking})

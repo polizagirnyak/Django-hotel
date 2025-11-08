@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (room_edit, room_type_edit, room_list,
                     room_create, room_delete, rooms_dashboard,
                     room_type_create, room_type_delete, room_type_list,
-                    booking_create_with_customer, booking_list)
+                    booking_create_with_customer, booking_list, booking_edit,
+                    booking_dashboard, booking_delete)
 
 urlpatterns = [
     path('room-types/', room_type_list, name='room_type_list'),
@@ -18,5 +19,8 @@ urlpatterns = [
     path('rooms-dashboard/', rooms_dashboard, name='rooms_dashboard'),
 
     path('bookings/create-with-customer/',booking_create_with_customer, name='booking_create_with_customer'),
+    path('bookings/<int:pk>/edit/', booking_edit, name='booking_edit'),
+    path('booking/<int:pk>/delete/', booking_delete, name='booking_delete'),
     path('bookings/', booking_list, name='booking_list'),
+    path('booking-dashboard/', booking_dashboard, name='booking_dashboard')
 ]
