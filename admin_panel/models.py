@@ -43,6 +43,16 @@ class Customer(models.Model):
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
 
+    def get_full_name(self):
+        return f'{self.first_name} {self.last_name}'
+
+    def get_age(self):
+        if self.birthday:
+            today = date.today()
+            return today.year - self.birthday.year - (
+                (today.month, today.day) < (self.birthday.month, self.birthday.day))
+        return None
+
 
 class Booking(models.Model):
     BOOKING_STATUS = [

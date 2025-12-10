@@ -1,0 +1,615 @@
+{% extends 'admin_panel/base.html' %}
+{% load static %}
+
+{% block title %}Клиенты отеля{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="table-header">
+        <h1>База клиентов</h1>
+        <div class="header-actions">
+            <a href="{% url 'booking_create_with_customer' %}" class="btn btn-primary">
+                + Новый клиент и бронирование
+            </a>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_customers }}</div>
+            <div class="stat-label">Всего клиентов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ active_customers }}</div>
+            <div class="stat-label">Активных клиентов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">
+                {% with total_bookings=bookings.count %}
+                    {{ total_bookings }}
+                {% endwith %}
+            </div>
+            <div class="stat-label">Всего бронирований</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">
+                {{ total_spent|default:0|floatformat:0 }}
+            </div>
+            <div class="stat-label">Общий доход (руб.)</div>
+        </div>
+    </div>
+
+    <!-- Поиск и фильтры -->
+    <div class="filters-card">
+        <form method="get" class="filters-form">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="search" class="filter-label">Поиск клиентов</label>
+                    <input type="text" name="search" id="search" class="form-control"
+                           value="{{ search_query }}" placeholder="Имя, фамилия, email, телефон...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="sort" class="filter-label">Сортировка</label>
+                    <select name="sort" id="sort" class="form-control">
+                        <option value="-last_booking_date" {% if sort_by == '-last_booking_date' %}selected{% endif %}>
+                            Сначала новые
+                        </option>
+                        <option value="last_booking_date" {% if sort_by == 'last_booking_date' %}selected{% endif %}>
+                            Сначала старые
+                        </option>
+                        <option value="-booking_count" {% if sort_by == '-booking_count' %}selected{% endif %}>
+                            Больше бронирований
+                        </option>
+                        <option value="booking_count" {% if sort_by == 'booking_count' %}selected{% endif %}>
+                            Меньше бронирований
+                        </option>
+                        <option value="-total_spent" {% if sort_by == '-total_spent' %}selected{% endif %}>
+                            Больше потратили
+                        </option>
+                        <option value="last_name" {% if sort_by == 'last_name' %}selected{% endif %}>
+                            По фамилии (А-Я)
+                        </option>
+                        <option value="-last_name" {% if sort_by == '-last_name' %}selected{% endif %}>
+                            По фамилии (Я-А)
+                        </option>
+                    </select>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        🔍 Применить
+                    </button>
+                    <a href="{% url 'customer_list' %}" class="btn btn-secondary">
+                        ❌ Сбросить
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Таблица клиентов -->
+    <div class="table-container">
+        <table class="customers-table">
+            <thead>
+                <tr>
+                    <th class="col-customer">Клиент</th>
+                    <th class="col-contacts">Контакты</th>
+                    <th class="col-bookings">Бронирования</th>
+                    <th class="col-spent">Потрачено</th>
+                    <th class="col-last">Последнее бронирование</th>
+                    <th class="col-actions">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers %}
+                <tr class="customer-row">
+                    <td class="customer-info">
+                        <div class="customer-name">
+                            <strong>{{ customer.get_full_name }}</strong>
+                        </div>
+                        <div class="customer-meta">
+                            {% if customer.get_age %}
+                                <span class="customer-age">{{ customer.get_age }} лет</span>
+                            {% endif %}
+                            {% if customer.birthday %}
+                                <span class="customer-birthday">
+                                    {{ customer.birthday|date:"d.m.Y" }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        {% if customer.passport_number %}
+                        <div class="customer-passport">
+                            <small>Паспорт: {{ customer.passport_number }}</small>
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <td class="contacts-info">
+                        <div class="contact-phone">
+                            <strong>📞</strong> {{ customer.phone }}
+                        </div>
+                        <div class="contact-email">
+                            <strong>📧</strong> {{ customer.email }}
+                        </div>
+                    </td>
+
+                    <td class="bookings-info">
+                        <div class="bookings-count">
+                            <span class="count-badge">{{ customer.booking_count }}</span>
+                            бронирований
+                        </div>
+                        {% if customer.booking_count > 0 %}
+                        {% comment %}
+                        <div class="bookings-stats">
+                            <small>
+                                {% with active=customer.booking_set.filter.status__in='confirmed,checked_in,awaiting_payment'|length %}
+                                    Активных: {{ active }}
+                                {% endwith %}
+                            </small>
+
+                        </div>
+                        {% endcomment %}
+                        {% endif %}
+                    </td>
+
+                    <td class="spent-info">
+                        {% if customer.total_spent %}
+                        <div class="total-spent">
+                            {{ customer.total_spent|floatformat:0 }} руб.
+                        </div>
+                        <div class="average-spent">
+                            <small>
+                                {% if customer.booking_count > 0 %}
+                                    ~{{ customer.total_spent|floatformat:0 }} руб.
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% else %}
+                        <span class="no-spent">—</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="last-booking">
+                        {% if customer.last_booking_date %}
+                        <div class="last-date">
+                            {{ customer.last_booking_date|date:"d.m.Y" }}
+                        </div>
+                        <div class="last-time">
+                            <small>{{ customer.last_booking_date|date:"H:i" }}</small>
+                        </div>
+                        {% else %}
+                        <span class="no-bookings">—</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="actions-cell">
+                        <div class="action-buttons">
+                            <a href="{% url 'customer_detail' customer.pk %}" class="btn-action btn-view" title="Просмотр">
+                                👁️
+                            </a>
+                            <a href="{% url 'customer_edit' customer.pk %}" class="btn-action btn-edit" title="Редактировать">
+                                ✏️
+                            </a>
+                            <a href="{% url 'booking_create_with_customer' %}?customer_id={{ customer.pk }}"
+                               class="btn-action btn-booking" title="Новое бронирование">
+                                📅
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="no-customers">
+                        <div class="empty-state">
+                            <div class="empty-icon">👥</div>
+                            <h3>Клиенты не найдены</h3>
+                            <p>
+                                {% if search_query %}
+                                    По запросу "{{ search_query }}" клиенты не найдены
+                                {% else %}
+                                    В системе пока нет зарегистрированных клиентов
+                                {% endif %}
+                            </p>
+                            <a href="{% url 'booking_create_with_customer' %}" class="btn btn-primary">
+                                + Создать первое бронирование
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .dashboard-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+
+    .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .table-header h1 {
+        color: #2c3e50;
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .filters-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        margin-bottom: 2rem;
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr auto;
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .filter-label {
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .form-control {
+        padding: 0.75rem;
+        border: 2px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+    }
+
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+    }
+
+    /* Таблица клиентов */
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .customers-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .customers-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .customers-table th {
+        color: white;
+        font-weight: 600;
+        padding: 1.25rem 0.75rem;
+        text-align: left;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .customers-table tbody tr {
+        border-bottom: 1px solid #f1f3f4;
+        transition: all 0.3s ease;
+    }
+
+    .customers-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .customers-table td {
+        padding: 1rem 0.75rem;
+        vertical-align: top;
+    }
+
+    /* Стили для ячеек */
+    .customer-name {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+
+    .customer-meta {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .customer-age, .customer-birthday {
+        color: #7f8c8d;
+        font-size: 0.85rem;
+    }
+
+    .customer-passport {
+        color: #95a5a6;
+        font-size: 0.8rem;
+    }
+
+    .contacts-info {
+        font-size: 0.9rem;
+    }
+
+    .contact-phone, .contact-email {
+        margin-bottom: 0.25rem;
+    }
+
+    .bookings-count {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .count-badge {
+        background: #667eea;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .bookings-stats {
+        color: #7f8c8d;
+        font-size: 0.8rem;
+    }
+
+    .total-spent {
+        font-weight: 600;
+        color: #4CAF50;
+        margin-bottom: 0.25rem;
+    }
+
+    .average-spent {
+        color: #7f8c8d;
+        font-size: 0.8rem;
+    }
+
+    .no-spent {
+        color: #bdc3c7;
+        font-style: italic;
+    }
+
+    .last-date {
+        font-weight: 500;
+        color: #2c3e50;
+        margin-bottom: 0.25rem;
+    }
+
+    .last-time {
+        color: #7f8c8d;
+        font-size: 0.8rem;
+    }
+
+    .no-bookings {
+        color: #bdc3c7;
+        font-style: italic;
+    }
+
+    /* Действия */
+    .actions-cell {
+        min-width: 120px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+
+    .btn-action {
+        padding: 0.5rem;
+        border: none;
+        border-radius: 4px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+
+    .btn-view {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .btn-view:hover {
+        background: #1976d2;
+        color: white;
+    }
+
+    .btn-edit {
+        background: #e8f5e8;
+        color: #2e7d32;
+    }
+
+    .btn-edit:hover {
+        background: #2e7d32;
+        color: white;
+    }
+
+    .btn-booking {
+        background: #fff3e0;
+        color: #ef6c00;
+    }
+
+    .btn-booking:hover {
+        background: #ef6c00;
+        color: white;
+    }
+
+    /* Пустое состояние */
+    .no-customers {
+        text-align: center;
+        padding: 4rem 2rem !important;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        opacity: 0.7;
+    }
+
+    .empty-state h3 {
+        color: #7f8c8d;
+        margin: 0;
+        font-weight: 500;
+    }
+
+    .empty-state p {
+        color: #bdc3c7;
+        margin: 0;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 768px) {
+        .table-header {
+            flex-direction: column;
+            gap: 1rem;
+            text-align: center;
+        }
+
+        .filters-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .filter-actions {
+            justify-content: center;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .customers-table {
+            min-width: 1000px;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .table-header h1 {
+            font-size: 1.75rem;
+        }
+    }
+</style>
+{% endblock %}

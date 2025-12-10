@@ -77,21 +77,36 @@
 <div class="table-stats">
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-number">{{ rooms|length }}</div>
+            <div class="stat-number">{{ total_rooms }}</div>
             <div class="stat-label">Всего номеров</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">{{ rooms|length }}</div>
+            <div class="stat-number">{{ available_rooms }}</div>
             <div class="stat-label">Свободно</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">0</div>
+            <div class="stat-number">{{ occupied_rooms }}</div>
             <div class="stat-label">Занято</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">0</div>
+            <div class="stat-number">{{ maintenance_rooms }}</div>
             <div class="stat-label">На обслуживании</div>
         </div>
     </div>
 </div>
+
+<!-- Проверка целостности данных -->
+{% if integrity_issues %}
+<div class="alert alert-warning">
+    <h5>⚠️ Обнаружены проблемы с данными:</h5>
+    <ul class="mb-0">
+        {% for issue in integrity_issues %}
+        <li>{{ issue }}</li>
+        {% endfor %}
+    </ul>
+    <div class="mt-2">
+        <small>Исправьте статусы комнат вручную или используйте функцию восстановления.</small>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

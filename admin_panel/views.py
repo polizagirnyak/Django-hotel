@@ -1,12 +1,16 @@
 from datetime import date, timedelta
 
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, Max
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Room, RoomType, Booking
 from .forms import RoomForm, RoomTypeForm, CustomerForm, BookingForm, BookingEditForm, SearchForm
-from .models import Room, RoomType
+from .models import Room, RoomType, Customer
 from django.contrib import messages
+
+
+def index(request):
+    return render(request, template_name='admin_panel/index.html')
 
 
 def room_type_create(request):
@@ -123,12 +127,37 @@ def room_create(request):
 
 
 def room_list(request):
-    # rooms = Room.objects.select_related('room_type').all()
-    rooms = Room.objects.all()
+    rooms = Room.objects.select_related('room_type').all()
+    # rooms = Room.objects.all()
+    total_rooms = rooms.count()
+    available_rooms = rooms.filter(status='available').count()
+    occupied_rooms = rooms.filter(status='occupied').count()
+    maintenance_rooms = rooms.filter(status='maintenance').count()
+    #проверка целостности данных
+    problems = []
+    for room in rooms.filter(status='occupied'):
+        #проверяем активные бронирования на занятость комнат
+        active_bookings = Booking.objects.filter(
+            room = room,
+            status__in = ['checked_in', 'confirmed', 'awaiting_payment'],
+            check_in_date__lte = date.today(),
+            check_out_date__gte=date.today()
+        )
+        if not active_bookings.exists():
+            problems.append(f'Комната {room.room_number} отмечена как занята, но активного бронирования нет')
+
+    context = {
+        'rooms': rooms,
+        'total_rooms': total_rooms,
+        'available_rooms': available_rooms,
+        'occupied_rooms': occupied_rooms,
+        'maintenance_rooms': maintenance_rooms,
+        'problems': problems
+    }
+
     return render(request,
                   template_name='admin_panel/room_list.html',
-                  context={'title': 'Список комнат',
-                           'rooms': rooms}
+                  context=context
                   )
 
 
@@ -350,28 +379,58 @@ def booking_list(request):
 def booking_edit(request, pk):
     #Редактирование существующего бронирования
     booking = get_object_or_404(Booking, pk = pk )
+    old_status = booking.status
+    old_room = booking.room
+
     if request.method == 'POST':
         form = BookingEditForm(request.POST, instance=booking)
         if form.is_valid():
             try:
                 with transaction.atomic():
                     updated_booking = form.save(commit=False)
+                    new_status = updated_booking.status
+                    new_room = updated_booking.room
                     #Пересчет стоимости при изменении дат или комнаты
                     if any(field in form.changed_data for field in ['check_in_date', 'check_out_date', 'room']):
                         nights = (updated_booking.check_out_date - updated_booking.check_in_date).days
                         total_price = nights*updated_booking.room.room_type.price_per_night
                         updated_booking.total_price = total_price
+
                     #Если изменилась комната, обноявляем статусы
-                    if 'room' in form.changed_data:
+                    if 'room' in form.changed_data and old_status == 'checked_in':
                         #Старую комнату обсвобождаем, если она была занята
-                        old_room = Room.objects.get(pk=booking.room.pk)
-                        if booking.status == 'checked_in':
-                            old_room.status = 'available'
-                            old_room.save()
+                        old_room.status = 'available'
+                        old_room.save()
+
+                    #обновляем статус новой комнаты на основе статуса бронирования
+                    if new_status == 'checked_in':
+                        new_room.status = 'occupied'
+                        new_room.save()
+                    elif new_status in ['checked_out', 'cancelled']:
+                        # Проверяем нет ли других активных бронирований
+                        other_active = Booking.objects.filter(
+                            room = new_room,
+                            status = 'checked_in'
+                        ).exclude(pk=booking.pk).exists()
+                        if not other_active:
+                            new_room.status = 'available'
+                            new_room.save()
+                    elif old_status == 'checked_in' and new_status != 'checked_in':
+                        # Если убираем заселение, освобождаем комнату
+                        other_active = Booking.objects.filter(
+                            room=new_room,
+                            status='checked_in'
+                        ).exclude(pk=booking.pk).exists()
+                        if not other_active:
+                            new_room.status = 'available'
+                            new_room.save()
+
+                        # old_room = Room.objects.get(pk=booking.room.pk)
+                        # if booking.status == 'checked_in':
+                        #     old_room.status = 'available'
+                        #     old_room.save()
+
                         #Новую комнату помечаем как занятую
-                        if updated_booking.status == 'checked_in':
-                            updated_booking.room.status = 'occupied'
-                            updated_booking.room.save()
                     updated_booking.save()
                     messages.success(request, 'Бронироввание успешно обновлено')
                     return redirect('booking_list')
@@ -437,3 +496,92 @@ def booking_delete(request, pk):
         messages.success(request, 'Бронирование успешно удалено')
         return redirect('booking_list')
     return render(request, 'admin_panel/confirm_delete.html', context={'object':booking})
+
+#####КЛИЕНТЫ#####
+def customer_list(request):
+    search_query = request.GET.get('search', '')
+    customers = Customer.objects.annotate(
+        booking_count = Count('booking'),
+        total_spent = Sum('booking__total_price'),
+        last_booking_date = Max('booking__created_at')
+    ).select_related()
+
+    #Поиск по клиентам
+    if search_query:
+        customers = customers.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(phone__icontains=search_query) |
+            Q(passport_number__icontains=search_query)
+        )
+
+    #Статистика
+    total_customers = customers.count()
+    active_customers = Customer.objects.filter(
+        booking__status__in=['confirmed', 'checked_in', 'awaiting_payment']
+    ).distinct().count()
+
+    context = {
+        'customers': customers,
+        'search_query': search_query,
+        'total_customers': total_customers,
+        'active_customers': active_customers
+    }
+    return render(request, template_name='admin_panel/customer_list.html', context=context)
+
+
+def customer_detail(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+
+    #Получаем все бронирования клиента
+    bookings = Booking.objects.filter(customer=customer).select_related(
+        'room'
+    ).order_by('-created_at')
+
+    #Статистика по клиенту
+    total_bookings = bookings.count()
+    total_spent = bookings.aggregate(
+        total = Sum('total_price'))['total'] or 0
+    active_bookings = bookings.filter(
+        status__in = ['confirmed', 'checked_in', 'awaiting_payment']
+    ).count()
+
+    #Последнее бронирование
+    last_booking = bookings.first()
+
+    #Предпочтения клиенты(самый частый тип номера)
+    favorite_room_type = bookings.values(
+        'room__room_type__name',
+    ).annotate(
+        count = Count('id')
+    ).order_by('-count').first()
+
+    context = {
+        'customer': customer,
+        'bookings': bookings,
+        'total_bookings': total_bookings,
+        'total_spent': total_spent,
+        'active_bookings': active_bookings,
+        'last_booking': last_booking,
+        'favorite_room_type': favorite_room_type
+    }
+    return render(request, template_name='admin_panel/customer_detail.html', context=context)
+
+
+def customer_edit(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    if request.method == 'POST':
+        form = CustomerForm(request.POST, instance=customer)
+        if form.is_valid():
+            form.save()
+            messages.success(request,'Инфомация о клиента успешно обновлена')
+            return redirect('customer_detail', pk=customer.pk)
+    else:
+        form = CustomerForm(instance=customer)
+    context = {
+        'form': form,
+        'customer': customer
+    }
+    return render(request, template_name='admin_panel/customer_edit.html', context=context)
+

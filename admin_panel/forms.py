@@ -80,7 +80,26 @@ class CustomerForm(forms.ModelForm):
                 attrs={'class': 'form-control', 'placeholder': 'Серия и номер паспорта'}),
             'birthday': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        #Устанавливаем атрибуты для поля Даты
+        today = date.today()
+        min_date = date(today.year - 120, 1,1)
+        self.fields['birthday'].widget.attrs['max'] = today.isoformat()
+        self.fields['birthday'].widget.attrs['min'] = min_date.isoformat()
 
+    def clean_birthday(self):
+        birthday = self.cleaned_data.get('birthday')
+        if birthday:
+            today = date.today()
+            if birthday > today:
+                raise forms.ValidationError('Дата рождения не может быть в будущем')
+            age = today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
+            if age < 18:
+                raise forms.ValidationError('Клиент должен быть старше 18 лет')
+            elif age > 120:
+                raise forms.ValidationError('Проверьте корректность даты рождения')
+        return birthday
 
 class BookingForm(forms.ModelForm):
     class Meta:
