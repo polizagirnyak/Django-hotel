@@ -5,7 +5,7 @@ from .views import (room_edit, room_type_edit, room_list,
                     booking_create_with_customer, booking_list, booking_edit,
                     booking_dashboard, booking_delete, index)
 from .views import (customer_edit, customer_list, customer_detail)
-
+from service.views import customer_service_bookings, customer_service_booking_add
 
 urlpatterns = [
     path('', index, name='index'),
@@ -31,4 +31,6 @@ urlpatterns = [
     path('customers/', customer_list, name='customer_list'),
     path('customers/<int:pk>/edit/', customer_edit, name='customer_edit'),
     path('customers/<int:pk>/', customer_detail, name='customer_detail'),
+    path('customer/<int:customer_id>/service-bookings/', customer_service_bookings, name='customer_service_bookings'),
+    path('customer/<int:customer_id>/service-bookings/add/', customer_service_booking_add, name='customer_service_booking_add')
 ]
