@@ -3,6 +3,8 @@ from datetime import date, timedelta
 from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
 from django.shortcuts import render, redirect, get_object_or_404
+
+from service.models import ServiceBooking
 from .models import Room, RoomType, Booking
 from .forms import RoomForm, RoomTypeForm, CustomerForm, BookingForm, BookingEditForm, SearchForm
 from .models import Room, RoomType, Customer
@@ -505,7 +507,7 @@ def customer_list(request):
         total_spent = Sum('booking__total_price'),
         last_booking_date = Max('booking__created_at')
     ).select_related()
-
+    total_bookings = Booking.objects.count()
     #Поиск по клиентам
     if search_query:
         customers = customers.filter(
@@ -526,7 +528,8 @@ def customer_list(request):
         'customers': customers,
         'search_query': search_query,
         'total_customers': total_customers,
-        'active_customers': active_customers
+        'active_customers': active_customers,
+        'total_bookings': total_bookings
     }
     return render(request, template_name='admin_panel/customer_list.html', context=context)
 
@@ -539,6 +542,10 @@ def customer_detail(request, pk):
         'room'
     ).order_by('-created_at')
 
+    #Получаем записи на услуги
+    service_bookings = ServiceBooking.objects.filter(customer=customer).select_related('service', 'created_by').order_by('-booking_date', '-start_time')
+
+
     #Статистика по клиенту
     total_bookings = bookings.count()
     total_spent = bookings.aggregate(
@@ -546,6 +553,15 @@ def customer_detail(request, pk):
     active_bookings = bookings.filter(
         status__in = ['confirmed', 'checked_in', 'awaiting_payment']
     ).count()
+
+    #Статистика по услугам
+    total_service_bookings = service_bookings.count()
+    active_service_bookings = service_bookings.filter(
+        status__in = ['pending', 'confirmed', 'in_progress']
+    ).count()
+    total_service_spent = service_bookings.aggregate(total=Sum('total_price'))['total'] or 0
+    #Последние 5 записей на услугу
+    recent_service_bookings = service_bookings[:5]
 
     #Последнее бронирование
     last_booking = bookings.first()
@@ -557,6 +573,13 @@ def customer_detail(request, pk):
         count = Count('id')
     ).order_by('-count').first()
 
+    #Самая популярная услуга
+    favorite_service = service_bookings.values(
+        'service__name'
+    ).annotate(
+        count = Count('id')
+    ).order_by('-count').first()
+
     context = {
         'customer': customer,
         'bookings': bookings,
@@ -564,7 +587,12 @@ def customer_detail(request, pk):
         'total_spent': total_spent,
         'active_bookings': active_bookings,
         'last_booking': last_booking,
-        'favorite_room_type': favorite_room_type
+        'favorite_room_type': favorite_room_type,
+        'total_service_bookings': total_service_bookings,
+        'active_service_bookings': active_service_bookings,
+        'total_service_spent': total_service_spent,
+        'recent_service_bookings': recent_service_bookings,
+        'favorite_service': favorite_service
     }
     return render(request, template_name='admin_panel/customer_detail.html', context=context)
 

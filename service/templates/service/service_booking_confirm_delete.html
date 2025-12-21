@@ -1,0 +1,67 @@
+{% extends 'service/base.html' %}
+{% load static %}
+ 
+{% block title %}Удаление записи{% endblock %}
+ 
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Удаление записи
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <div class="mb-3">
+                            <i class="fas fa-trash-alt fa-3x text-danger"></i>
+                        </div>
+                        <h4>Вы уверены, что хотите удалить запись?</h4>
+                    </div>
+ 
+                    <div class="alert alert-warning">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="fas fa-exclamation-circle"></i>
+                            </div>
+                            <div>
+                                <h6 class="alert-heading">Информация о записи</h6>
+                                <p class="mb-1">
+                                    <strong>Клиент:</strong> {{ booking.customer.get_full_name }}
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Услуга:</strong> {{ booking.service.name }}
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Дата и время:</strong>
+                                    {{ booking.booking_date|date:"d.m.Y" }} {{ booking.start_time|time:"H:i" }}
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Статус:</strong> {{ booking.get_status_display }}
+                                </p>
+                                <p class="mb-0">
+                                    <strong>Стоимость:</strong> {{ booking.total_price }} руб.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+ 
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'service_booking_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Отмена
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> Удалить запись
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

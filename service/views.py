@@ -307,7 +307,7 @@ def customer_service_bookings(request, customer_id):
         'customer':customer,
         'current_booking':current_booking
     }
-    return render(request, template_name='service/customer_booking.html', context=context)
+    return render(request, template_name='service/customer_bookings.html', context=context)
 
 
 @login_required

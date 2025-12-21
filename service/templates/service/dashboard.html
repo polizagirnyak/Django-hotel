@@ -1,10 +1,179 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends 'service/base.html' %}
 
-</body>
-</html>
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h2 mb-0">Управление услугами и СПА</h1>
+            <p class="text-muted">Панель управления услугами отеля</p>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Всего услуг
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_services }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-concierge-bell fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Активные услуги
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ active_services }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Записей сегодня
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ today_bookings }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar-day fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Ожидают подтверждения
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_bookings }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основные действия -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Быстрые действия</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'service_categories' %}" class="btn btn-primary btn-block">
+                                <i class="fas fa-list"></i> Категории услуг
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'service_list' %}" class="btn btn-success btn-block">
+                                <i class="fas fa-spa"></i> Все услуги
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'service_booking_list' %}" class="btn btn-info btn-block">
+                                <i class="fas fa-calendar-alt"></i> Записи
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'service_add' %}" class="btn btn-warning btn-block">
+                                <i class="fas fa-plus"></i> Добавить услугу
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ближайшие записи -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Ближайшие записи</h6>
+                    <a href="{% url 'service_booking_add' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i> Новая запись
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_bookings %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Время</th>
+                                    <th>Клиент</th>
+                                    <th>Услуга</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for booking in upcoming_bookings %}
+                                <tr>
+                                    <td>{{ booking.booking_date|date:"d.m.Y" }}</td>
+                                    <td>{{ booking.start_time|time:"H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'customer_service_bookings' booking.customer.id %}">
+                                            {{ booking.customer.get_full_name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ booking.service.name }}</td>
+                                    <td>
+                                        <span class="badge badge-{{ booking.status|yesno:'success,secondary,warning,danger,info' }}">
+                                            {{ booking.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'service_booking_edit' booking.id %}"
+                                           class="btn btn-sm btn-info">Редактировать</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Нет предстоящих записей</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

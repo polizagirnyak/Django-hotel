@@ -1,0 +1,375 @@
+{% extends 'service/base.html' %}
+{% load static %}
+ 
+{% block title %}{{ title }}{% endblock %}
+ 
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ title }}</h5>
+                        <a href="{% url 'service_booking_list' %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Назад
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+ 
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+ 
+                        <div class="row">
+                            <!-- Левая колонка -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.customer.id_for_label }}" class="form-label">
+                                        Клиент *
+                                    </label>
+                                    {{ form.customer }}
+                                    {% if form.customer.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.customer.errors }}
+                                    </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Выберите клиента из списка
+                                    </small>
+                                </div>
+ 
+                                <div class="mb-3">
+                                    <label for="{{ form.service.id_for_label }}" class="form-label">
+                                        Услуга *
+                                    </label>
+                                    {{ form.service }}
+                                    {% if form.service.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.service.errors }}
+                                    </div>
+                                    {% endif %}
+                                    <div id="service-info" class="mt-2" style="display: none;">
+                                        <div class="card">
+                                            <div class="card-body p-3">
+                                                <div class="d-flex justify-content-between">
+                                                    <div>
+                                                        <strong id="service-name"></strong>
+                                                        <p class="mb-0 text-muted small" id="service-description"></p>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <div class="text-success fw-bold" id="service-price"></div>
+                                                        <div class="text-muted small" id="service-duration"></div>
+                                                        <div class="text-muted small" id="service-capacity"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+ 
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.booking_date.id_for_label }}" class="form-label">
+                                            Дата записи *
+                                        </label>
+                                        {{ form.booking_date }}
+                                        {% if form.booking_date.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.booking_date.errors }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+ 
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.start_time.id_for_label }}" class="form-label">
+                                            Время начала *
+                                        </label>
+                                        {{ form.start_time }}
+                                        {% if form.start_time.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.start_time.errors }}
+                                        </div>
+                                        {% endif %}
+                                        <div id="end-time" class="mt-2 small text-muted" style="display: none;">
+                                            Окончание: <span id="end-time-value"></span>
+                                        </div>
+                                    </div>
+                                </div>
+ 
+                                <div class="mb-3">
+                                    <label for="{{ form.participants.id_for_label }}" class="form-label">
+                                        Количество участников
+                                    </label>
+                                    {{ form.participants }}
+                                    {% if form.participants.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.participants.errors }}
+                                    </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted" id="max-capacity-info">
+                                        Максимальное количество: <span id="max-capacity">1</span>
+                                    </small>
+                                </div>
+                            </div>
+ 
+                            <!-- Правая колонка -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.status.id_for_label }}" class="form-label">
+                                        Статус записи *
+                                    </label>
+                                    {{ form.status }}
+                                    {% if form.status.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.status.errors }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+ 
+                                <div class="mb-3">
+                                    <label for="{{ form.special_requests.id_for_label }}" class="form-label">
+                                        Особые пожелания
+                                    </label>
+                                    {{ form.special_requests }}
+                                    {% if form.special_requests.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.special_requests.errors }}
+                                    </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Предпочтения клиента
+                                    </small>
+                                </div>
+ 
+                                <div class="mb-3">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        Примечания администратора
+                                    </label>
+                                    {{ form.notes }}
+                                    {% if form.notes.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.notes.errors }}
+                                    </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Внутренние заметки для администрации
+                                    </small>
+                                </div>
+ 
+                                <div class="alert alert-info mt-4">
+                                    <div class="d-flex">
+                                        <div class="me-3">
+                                            <i class="fas fa-info-circle"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="alert-heading">Информация</h6>
+                                            <p class="mb-0">
+                                                <strong>Общая стоимость:</strong>
+                                                <span id="total-price" class="text-success fw-bold">0</span> руб.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+ 
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'service_booking_list' %}" class="btn btn-secondary">
+                                Отмена
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Сохранить запись
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+ 
+<style>
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        padding: 0.75rem;
+    }
+ 
+    textarea.form-control {
+        min-height: 100px;
+        resize: vertical;
+    }
+ 
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+ 
+    .alert-info {
+        background-color: #e3f2fd;
+        border-color: #bbdefb;
+        color: #0c5460;
+        border-radius: 8px;
+    }
+</style>
+ 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Автоматически добавляем классы к полям формы
+        const inputs = document.querySelectorAll('input[type="text"], input[type="number"], textarea, select');
+        inputs.forEach(input => {
+            input.classList.add('form-control');
+        });
+ 
+        // Данные об услугах (загружаются из Django template)
+        const serviceData = {
+            {% for service in form.fields.service.queryset %}
+            {{ service.id }}: {
+                name: "{{ service.name }}",
+                description: "{{ service.short_description }}",
+                price: {{ service.price }},
+                duration: {{ service.duration }},
+                max_capacity: {{ service.max_capacity }}
+            },
+            {% endfor %}
+        };
+ 
+        // Элементы DOM
+        const serviceSelect = document.getElementById('{{ form.service.id_for_label }}');
+        const participantsInput = document.getElementById('{{ form.participants.id_for_label }}');
+        const serviceInfo = document.getElementById('service-info');
+        const serviceName = document.getElementById('service-name');
+        const serviceDescription = document.getElementById('service-description');
+        const servicePrice = document.getElementById('service-price');
+        const serviceDuration = document.getElementById('service-duration');
+        const serviceCapacity = document.getElementById('service-capacity');
+        const maxCapacitySpan = document.getElementById('max-capacity');
+        const endTimeDiv = document.getElementById('end-time');
+        const endTimeValue = document.getElementById('end-time-value');
+        const totalPriceSpan = document.getElementById('total-price');
+ 
+        // Обновление информации об услуге
+        function updateServiceInfo() {
+            const serviceId = serviceSelect.value;
+            if (serviceId && serviceData[serviceId]) {
+                const service = serviceData[serviceId];
+ 
+                serviceName.textContent = service.name;
+                serviceDescription.textContent = service.description;
+                servicePrice.textContent = service.price + ' руб.';
+ 
+                // Форматирование длительности
+                const hours = Math.floor(service.duration / 60);
+                const minutes = service.duration % 60;
+                let durationText = '';
+                if (hours > 0) durationText += hours + ' ч ';
+                if (minutes > 0) durationText += minutes + ' мин';
+                serviceDuration.textContent = durationText;
+ 
+                serviceCapacity.textContent = 'до ' + service.max_capacity + ' чел.';
+                maxCapacitySpan.textContent = service.max_capacity;
+ 
+                // Установка максимального значения для участников
+                participantsInput.max = service.max_capacity;
+ 
+                serviceInfo.style.display = 'block';
+                updateTotalPrice();
+            } else {
+                serviceInfo.style.display = 'none';
+            }
+        }
+ 
+        // Расчет времени окончания
+        function updateEndTime() {
+            const serviceId = serviceSelect.value;
+            const startTimeInput = document.getElementById('{{ form.start_time.id_for_label }}');
+ 
+            if (serviceId && serviceData[serviceId] && startTimeInput.value) {
+                const service = serviceData[serviceId];
+                const startTime = startTimeInput.value;
+ 
+                // Расчет времени окончания
+                const [hours, minutes] = startTime.split(':').map(Number);
+                let endHours = hours + Math.floor(service.duration / 60);
+                let endMinutes = minutes + (service.duration % 60);
+ 
+                if (endMinutes >= 60) {
+                    endHours += 1;
+                    endMinutes -= 60;
+                }
+ 
+                if (endHours >= 24) {
+                    endHours -= 24;
+                }
+ 
+                const endTimeStr = endHours.toString().padStart(2, '0') + ':' +
+                                   endMinutes.toString().padStart(2, '0');
+                endTimeValue.textContent = endTimeStr;
+                endTimeDiv.style.display = 'block';
+            } else {
+                endTimeDiv.style.display = 'none';
+            }
+        }
+ 
+        // Расчет общей стоимости
+        function updateTotalPrice() {
+            const serviceId = serviceSelect.value;
+            const participants = parseInt(participantsInput.value) || 1;
+ 
+            if (serviceId && serviceData[serviceId]) {
+                const service = serviceData[serviceId];
+                const totalPrice = service.price * participants;
+                totalPriceSpan.textContent = totalPrice;
+            } else {
+                totalPriceSpan.textContent = '0';
+            }
+        }
+ 
+        // События
+        serviceSelect.addEventListener('change', function() {
+            updateServiceInfo();
+            updateEndTime();
+        });
+ 
+        participantsInput.addEventListener('input', updateTotalPrice);
+ 
+        const startTimeInput = document.getElementById('{{ form.start_time.id_for_label }}');
+        if (startTimeInput) {
+            startTimeInput.addEventListener('change', updateEndTime);
+        }
+ 
+        // Инициализация
+        if (serviceSelect.value) {
+            updateServiceInfo();
+            updateEndTime();
+        }
+        updateTotalPrice();
+ 
+        // Установка минимальной даты (сегодня)
+        const today = new Date().toISOString().split('T')[0];
+        const bookingDateInput = document.getElementById('{{ form.booking_date.id_for_label }}');
+        if (bookingDateInput) {
+            bookingDateInput.min = today;
+            if (!bookingDateInput.value) {
+                bookingDateInput.value = today;
+            }
+        }
+ 
+        // Установка времени по умолчанию (ближайший час)
+        if (startTimeInput && !startTimeInput.value) {
+            const now = new Date();
+            const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+            startTimeInput.value = nextHour.getHours().toString().padStart(2, '0') + ':00';
+            setTimeout(updateEndTime, 100);
+        }
+    });
+</script>
+{% endblock %}

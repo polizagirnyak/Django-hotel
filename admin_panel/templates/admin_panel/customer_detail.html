@@ -79,14 +79,93 @@
             </div>
         </div>
     </div>
+    <!-- Записи на услуги -->
+    <div class="services-section">
+        <div class="section-header">
+            <h2>💆 Записи на услуги и СПА</h2>
+            <a href="{% url 'customer_service_booking_add' customer.id %}" class="btn btn-success">
+                + Добавить запись
+            </a>
+        </div>
 
+        <div class="services-actions">
+            <a href="{% url 'customer_service_bookings' customer.id %}" class="btn-service-action">
+                <span class="service-icon">📋</span>
+                <span class="service-text">
+                    <strong>Все записи на услуги</strong>
+                    <small>Просмотр и управление</small>
+                </span>
+                <span class="service-arrow">→</span>
+            </a>
+            <a href="{% url 'service_booking_add' %}?customer_id={{ customer.pk }}" class="btn-service-action">
+                <span class="service-icon">✨</span>
+                <span class="service-text">
+                    <strong>Быстрая запись</strong>
+                    <small>Выбрать из всех услуг</small>
+                </span>
+                <span class="service-arrow">→</span>
+            </a>
+        </div>
+
+        <!-- Последние записи -->
+        <div class="recent-services">
+            <h4>Последние записи</h4>
+            {% if recent_service_bookings %}
+            <div class="services-list">
+                {% for booking in recent_service_bookings %}
+                <div class="service-booking-card">
+                    <div class="service-booking-header">
+                        <span class="service-name">{{ booking.service.name }}</span>
+                        <span class="service-status status-{{ booking.status }}">
+                            {{ booking.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="service-booking-info">
+                        <div class="service-date-time">
+                            <span class="date">{{ booking.booking_date|date:"d.m.Y" }}</span>
+                            <span class="time">{{ booking.start_time|time:"H:i" }}</span>
+                        </div>
+                        <div class="service-details">
+                            <span class="price">{{ booking.total_price }} руб.</span>
+                            <span class="duration">{{ booking.service.duration_display }}</span>
+                        </div>
+                    </div>
+                    <div class="service-booking-actions">
+                        <a href="{% url 'service_booking_edit' booking.id %}" class="btn-action btn-edit-small">
+                            ✏️ Редактировать
+                        </a>
+                        {% if booking.status == 'pending' or booking.status == 'confirmed' %}
+                        <form method="post" action="{% url 'service_booking_change_status' booking.id %}" class="inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="status" value="cancelled">
+                            <button type="submit" class="btn-action btn-cancel-small"
+                                    onclick="return confirm('Вы уверены, что хотите отменить запись?')">
+                                ❌ Отменить
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-services">
+                <div class="empty-icon">💆</div>
+                <h5>Записей на услуги нет</h5>
+                <p>Клиент еще не записывался на услуги отеля</p>
+                <a href="{% url 'customer_service_booking_add' customer.id %}" class="btn btn-primary">
+                    + Добавить первую запись
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
     <!-- История бронирований -->
     <div class="bookings-section">
         <div class="section-header">
             <h2>📅 История бронирований</h2>
             <span class="badge">{{ total_bookings }}</span>
         </div>
-
         {% if bookings %}
         <div class="bookings-table">
             <table>
@@ -217,7 +296,6 @@
     .btn-success:hover {
         background: #45a049;
     }
-
     .btn-secondary {
         background: white;
         color: #667eea;
@@ -423,7 +501,6 @@
         background: #2e7d32;
         color: white;
     }
-
     /* Пустое состояние */
     .empty-bookings {
         text-align: center;
@@ -464,6 +541,345 @@
         .bookings-table th,
         .bookings-table td {
             padding: 0.5rem 0.25rem;
+        }
+    }
+        /* ========== СТИЛИ ДЛЯ РАЗДЕЛА УСЛУГ ========== */
+
+    /* Раздел услуг */
+    .services-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .services-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .btn-service-action {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border: 2px solid #e3e8f0;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #2c3e50;
+        transition: all 0.3s ease;
+    }
+
+    .btn-service-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: #667eea;
+    }
+
+    .btn-service-action:hover .service-icon {
+        transform: scale(1.2);
+    }
+
+    .btn-service-action:hover .service-arrow {
+        transform: translateX(5px);
+    }
+
+    .service-icon {
+        font-size: 1.5rem;
+        transition: transform 0.3s ease;
+    }
+
+    .service-text {
+        flex-grow: 1;
+        margin: 0 1rem;
+    }
+
+    .service-text strong {
+        display: block;
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .service-text small {
+        display: block;
+        font-size: 0.8rem;
+        opacity: 0.8;
+    }
+
+    .service-arrow {
+        font-size: 1.2rem;
+        transition: transform 0.3s ease;
+    }
+
+    /* Список услуг */
+    .recent-services {
+        margin-top: 2rem;
+    }
+
+    .recent-services h4 {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f1f3f4;
+        font-size: 1.1rem;
+    }
+
+    .services-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .service-booking-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        border-left: 4px solid #667eea;
+        transition: all 0.3s ease;
+    }
+
+    .service-booking-card:hover {
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .service-booking-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .service-name {
+        font-weight: 600;
+        color: #2c3e50;
+        flex-grow: 1;
+    }
+
+    .service-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .status-pending {
+        background: #fff3e0;
+        color: #ef6c00;
+    }
+
+    .status-confirmed {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .status-in_progress {
+        background: #e8f5e8;
+        color: #2e7d32;
+    }
+
+    .status-completed {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+    .status-cancelled {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .status-no_show {
+        background: #f5f5f5;
+        color: #616161;
+    }
+
+    .service-booking-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .service-date-time {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .service-date-time .date,
+    .service-date-time .time {
+        background: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        border: 1px solid #e9ecef;
+    }
+
+    .service-details {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .service-details .price {
+        font-weight: 600;
+        color: #4CAF50;
+        font-size: 0.9rem;
+    }
+
+    .service-details .duration {
+        background: #e3f2fd;
+        color: #1976d32;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .service-booking-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-edit-small {
+        background: #e8f5e8;
+        color: #2e7d32;
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .btn-edit-small:hover {
+        background: #2e7d32;
+        color: white;
+    }
+
+    .btn-cancel-small {
+        background: #ffebee;
+        color: #c62828;
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .btn-cancel-small:hover {
+        background: #c62828;
+        color: white;
+    }
+
+    .inline-form {
+        display: inline;
+    }
+
+    /* Пустое состояние для услуг */
+    .empty-services {
+        text-align: center;
+        padding: 2rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+
+    .empty-services .empty-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .empty-services h5 {
+        margin-bottom: 0.5rem;
+        color: #2c3e50;
+        font-size: 1.1rem;
+    }
+
+    .empty-services p {
+        color: #7f8c8d;
+        margin-bottom: 1.5rem;
+    }
+
+    .empty-services .btn {
+        min-width: 200px;
+    }
+
+    /* Адаптивность для раздела услуг */
+    @media (max-width: 768px) {
+        .services-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .service-booking-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .service-status {
+            align-self: flex-start;
+        }
+
+        .service-booking-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .service-details {
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .service-booking-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .btn-edit-small,
+        .btn-cancel-small {
+            flex: 1;
+            min-width: calc(50% - 0.25rem);
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .service-booking-actions {
+            flex-direction: column;
+        }
+
+        .btn-edit-small,
+        .btn-cancel-small {
+            min-width: 100%;
         }
     }
 </style>

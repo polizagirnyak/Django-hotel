@@ -1,0 +1,175 @@
+{% extends 'service/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ title }}</h5>
+                        <a href="{% url 'service_categories' %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Назад
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.name.id_for_label }}" class="form-label">
+                                Название категории *
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.name.errors }}
+                            </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Например: СПА процедуры, Ресторан, Экскурсии
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.icon.id_for_label }}" class="form-label">
+                                Иконка (Emoji)
+                            </label>
+                            <div class="input-group">
+                                {{ form.icon }}
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="document.getElementById('{{ form.icon.id_for_label }}').value = '✨'">
+                                    ✨
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="document.getElementById('{{ form.icon.id_for_label }}').value = '💆'">
+                                    💆
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="document.getElementById('{{ form.icon.id_for_label }}').value = '🍽️'">
+                                    🍽️
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="document.getElementById('{{ form.icon.id_for_label }}').value = '🏊'">
+                                    🏊
+                                </button>
+                            </div>
+                            {% if form.icon.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.icon.errors }}
+                            </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Выберите emoji-иконку для категории
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                Описание
+                            </label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.description.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        Активная категория
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.order.id_for_label }}" class="form-label">
+                                    Порядок отображения
+                                </label>
+                                {{ form.order }}
+                                {% if form.order.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.order.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'service_categories' %}" class="btn btn-secondary">
+                                Отмена
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Сохранить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        padding: 0.75rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-check-input:checked {
+        background-color: #667eea;
+        border-color: #667eea;
+    }
+
+    .alert {
+        border-radius: 8px;
+    }
+
+    .input-group .btn {
+        padding: 0.5rem 0.75rem;
+    }
+</style>
+
+<script>
+    // Автоматически добавляем классы к полям формы
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputs = document.querySelectorAll('input[type="text"], input[type="number"], textarea, select');
+        inputs.forEach(input => {
+            input.classList.add('form-control');
+        });
+
+        // Для checkbox
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.classList.add('form-check-input');
+        });
+    });
+</script>
+{% endblock %}
