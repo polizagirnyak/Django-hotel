@@ -42,14 +42,6 @@
                             {% endwith %}
                         </span>
                     </div>
-                    <div class="info-item">
-                        <strong>Общая сумма:</strong>
-                        <span>
-                            {% with total_spent=customer.booking_set.aggregate(total=Sum('total_price')) %}
-                                {{ total_spent.total|default:0|floatformat:0 }} руб.
-                            {% endwith %}
-                        </span>
-                    </div>
                 </div>
             </div>
 

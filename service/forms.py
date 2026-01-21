@@ -28,6 +28,11 @@ class ServiceForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 4}),
             'short_description': forms.Textarea(attrs={'rows': 2})
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['mean_booking_hours'].help_text = (
+            'Клиенты смогут бронировать услугу не ранее чем за указанное количество часов до времени посещения'
+        )
 
 
 class ServiceBookingForm(forms.ModelForm):
