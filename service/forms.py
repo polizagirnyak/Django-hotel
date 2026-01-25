@@ -23,14 +23,14 @@ class ServiceForm(forms.ModelForm):
         model = Service
         fields = ['name', 'category', 'description', 'short_description',
                   'price', 'duration', 'max_capacity', 'status', 'is_featured',
-                  'image', 'order']
+                  'image', 'order', 'min_booking_hours']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 4}),
             'short_description': forms.Textarea(attrs={'rows': 2})
         }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['mean_booking_hours'].help_text = (
+        self.fields['min_booking_hours'].help_text = (
             'Клиенты смогут бронировать услугу не ранее чем за указанное количество часов до времени посещения'
         )
 

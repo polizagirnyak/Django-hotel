@@ -1,4 +1,8 @@
+import json
+
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
+from django.utils import timezone
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
@@ -220,16 +224,36 @@ def service_booking_add(request):
     if request.method == 'POST':
         form = ServiceBookingForm(request.POST)
         if form.is_valid():
-            booking = form.save(commit=False)
-            booking.created_by = request.user
-            booking.save()
+            try:
+                booking = form.save(commit=False)
+                booking.created_by = request.user
 
-            messages.success(request,'Запись на услугу успешно создана')
+                #Дополнительная проверка минимального времени
+                service = booking.service
+                if service.min_booking_hours > 0:
+                    booking_datetime =timezone.make_aware(
+                        datetime.combine(booking.booking_date, booking.start_time)
+                    )
+                    min_booking_datetime = timezone.now() + timezone.timedelta(
+                        hours = service.min_booking_hours
+                    )
+                    if booking_datetime < min_booking_datetime:
+                        form.add_error(None,
+                                       f'Эту услугу можно бронировать не ранее чем за {service.min_booking_hours}'
+                                       f'часов. Выберите время после {min_booking_datetime.strftime('%d.%m.%Y %H:%M')}')
+                        return render(request, 'service/booking_add.html', context={'form':form, 'title':'Добавить запись на услугу'})
 
-            next_url = request.GET.get('next')
-            if next_url:
-                return redirect(next_url)
-            return redirect('service_booking_list')
+                booking.save()
+
+                messages.success(request,'Запись на услугу успешно создана')
+
+                #Если создан новый клиент
+                if form.cleaned_data.get('new_customer'):
+                    messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
+                return redirect('service_booking_list')
+            except ValidationError as e:
+                form.add_error(None, str(e))
+
     else:
         form = ServiceBookingForm()
         #Если передан id клиента
@@ -248,7 +272,23 @@ def service_booking_add(request):
                 form.fields['service'].initial = service
             except Service.DoesNotExist:
                 pass
-    return render(request, template_name='service/service_booking_add.html', context={'form':form, 'title':'Добавить запись на услугу'})
+    #Подготавливаем данные об услугах JS
+    services_data = {}
+    for service in Service.objects.all():
+        services_data[str(service.id)] = {
+            'name': service.name,
+            'description': service.short_description,
+            'price': float(service.price),
+            'duration': service.duration,
+            'max_capacity': service.max_capacity,
+            'min_booking_hours': service.min_booking_hours
+        }
+    context = {
+        'form': form,
+        'title': 'Добавить запись на услугу',
+        'services_json': json.dumps(services_data)
+    }
+    return render(request, template_name='service/service_booking_add.html', context=context)
 
 #Редактирование услуги
 @login_required
@@ -263,7 +303,23 @@ def service_booking_edit(request, pk):
             return redirect('service_booking_list')
     else:
         form = ServiceBookingForm(instance=booking)
-    return render(request, template_name='service/service_booking_add.html', context={'form':form, 'title':'Редактировать запись'})
+    #Подготавливаем данные об услугах JS
+    services_data = {}
+    for service in Service.objects.all():
+        services_data[str(service.id)] = {
+            'name': service.name,
+            'description': service.short_description,
+            'price': float(service.price),
+            'duration': service.duration,
+            'max_capacity': service.max_capacity,
+            'min_booking_hours': service.min_booking_hours
+        }
+    context = {
+        'form': form,
+        'title': 'Редактировать запись',
+        'services_json': json.dumps(services_data)
+    }
+    return render(request, template_name='service/service_booking_add.html', context=context)
 
 @login_required
 @staff_required
@@ -327,12 +383,24 @@ def customer_service_booking_add(request, customer_id):
             return redirect('customer_service_bookings')
     else:
         form = ServiceBookingForm(initial={'customer':customer})
-
+    #Подготавливаем данные об услугах JS
+    services_data = {}
+    for service in Service.objects.all():
+        services_data[str(service.id)] = {
+            'name': service.name,
+            'description': service.short_description,
+            'price': float(service.price),
+            'duration': service.duration,
+            'max_capacity': service.max_capacity,
+            'min_booking_hours': service.min_booking_hours
+        }
     context = {
-        'form':form,
-        'customer':customer,
-        'title':f'Добавить запись нра услугу для {customer.get_full_name()}'
+        'form': form,
+        'customer': customer,
+        'title': f'Добавить запись на услугу для {customer.get_full_name()}',
+        'services_json': json.dumps(services_data)
     }
+
     return render(request, template_name='service/customer_booking_add.html', context=context)
 
 #Проверка доступности услуги в указанное время

@@ -45,7 +45,7 @@ class Service(models.Model):
         (180, '3 часа')
     ]
 
-    MEAN_BOOKING_HOURS_CHOICES = [
+    MIN_BOOKING_HOURS_CHOICES = [
         (1, 'За 1 час'),
         (2, 'За 2 часа'),
         (3, 'За 3 часа'),
@@ -72,8 +72,8 @@ class Service(models.Model):
     order = models.IntegerField(default=0, verbose_name='Порядок отображения')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
-    mean_booking_hours = models.IntegerField(
-        choices=MEAN_BOOKING_HOURS_CHOICES,
+    min_booking_hours = models.IntegerField(
+        choices=MIN_BOOKING_HOURS_CHOICES,
         default=3,
         verbose_name='Можно бронировать за',
         help_text='Минимальное время, за которое можно забронировать услугу'
@@ -208,6 +208,7 @@ class ServiceBooking(models.Model):
         if not self.total_price:
             self.total_price = self.service.price * self.participants
 
+        self.clean()
         super().save(*args, **kwargs)
 
     def __str__(self):

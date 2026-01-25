@@ -1,7 +1,7 @@
 {% extends 'service/base.html' %}
 {% load static %}
 
-{% block title %}Новая запись на услугу - {{ customer.get_full_name }}{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -10,7 +10,7 @@
             <div class="card shadow">
                 <div class="card-header bg-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Новая запись на услугу</h5>
+                        <h5 class="mb-0">{{ title }}</h5>
                         <a href="{% url 'customer_service_bookings' customer.pk %}" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-arrow-left"></i> Назад
                         </a>
@@ -55,6 +55,9 @@
                         </div>
                         {% endif %}
 
+                        <!-- Скрытое поле для клиента -->
+                        <input type="hidden" name="customer" value="{{ customer.pk }}">
+
                         <div class="row">
                             <!-- Выбор услуги -->
                             <div class="col-md-6 mb-4">
@@ -68,18 +71,23 @@
                                         {{ form.service.errors }}
                                     </div>
                                     {% endif %}
+                                    <small class="form-text text-muted">
+                                        <a href="{% url 'service_list' %}" target="_blank">
+                                            <i class="fas fa-external-link-alt"></i> Все услуги
+                                        </a>
+                                    </small>
                                 </div>
-
                                 <!-- Информация об услуге -->
-                                <div id="service-info" class="card border-primary" style="display: none;">
+                                <div id="service-info" class="card border-primary mt-3" style="display: none;">
                                     <div class="card-body p-3">
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div>
                                                 <h6 class="card-title mb-1" id="service-name"></h6>
                                                 <p class="card-text text-muted small mb-2" id="service-description"></p>
-                                                <div class="d-flex align-items-center">
-                                                    <span class="badge bg-info me-2" id="service-duration"></span>
+                                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                                    <span class="badge bg-info" id="service-duration"></span>
                                                     <span class="badge bg-secondary" id="service-capacity"></span>
+                                                    <span class="badge bg-warning" id="service-booking-time" style="display: none;"></span>
                                                 </div>
                                             </div>
                                             <div class="text-end">
@@ -94,7 +102,7 @@
                             <!-- Дата и время -->
                             <div class="col-md-6 mb-4">
                                 <div class="row">
-                                    <div class="col-12 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label for="{{ form.booking_date.id_for_label }}" class="form-label fw-semibold">
                                             <i class="fas fa-calendar-alt me-2"></i>Дата записи *
                                         </label>
@@ -106,7 +114,7 @@
                                         {% endif %}
                                     </div>
 
-                                    <div class="col-12 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label for="{{ form.start_time.id_for_label }}" class="form-label fw-semibold">
                                             <i class="fas fa-clock me-2"></i>Время начала *
                                         </label>
@@ -124,7 +132,6 @@
                                 </div>
                             </div>
                         </div>
-
                         <div class="row">
                             <!-- Количество участников и статус -->
                             <div class="col-md-6 mb-4">
@@ -134,9 +141,7 @@
                                     </label>
                                     <div class="input-group">
                                         {{ form.participants }}
-                                        <span class="input-group-text">
-                                            чел.
-                                        </span>
+                                        <span class="input-group-text">чел.</span>
                                     </div>
                                     {% if form.participants.errors %}
                                     <div class="invalid-feedback d-block">
@@ -164,6 +169,25 @@
                             </div>
                         </div>
 
+                        <!-- Информация о времени бронирования -->
+                        <div id="booking-time-info" class="alert alert-warning mb-4" style="display: none;">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div>
+                                    <h6 class="alert-heading mb-1">Информация о бронировании</h6>
+                                    <p class="mb-0" id="min-booking-time-text"></p>
+                                    <p class="mb-0 mt-1 small" id="current-booking-time"></p>
+                                    <p class="mb-0 mt-1 small text-success" id="available-booking-time" style="display: none;">
+                                        ✓ Это время доступно для бронирования
+                                    </p>
+                                    <p class="mb-0 mt-1 small text-danger" id="unavailable-booking-time" style="display: none;">
+                                        ⚠ Это время пока недоступно для бронирования
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Пожелания и примечания -->
                         <div class="row">
                             <div class="col-md-6 mb-4">
@@ -220,7 +244,6 @@
                                 </div>
                             </div>
                         </div>
-
                         <!-- Кнопки действий -->
                         <div class="d-flex justify-content-between mt-4 pt-3 border-top">
                             <a href="{% url 'customer_service_bookings' customer.pk %}" class="btn btn-secondary">
@@ -243,22 +266,46 @@
 </div>
 
 <style>
-    .form-control, .form-select {
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-secondary:disabled {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.tooltip-inner {
+    max-width: 300px;
+    padding: 0.5rem 0.75rem;
+    background-color: #dc3545;
+}
+
+.tooltip.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: #dc3545;
+}
+    .form-control, .form-select, textarea.form-control {
         border-radius: 8px;
         border: 1px solid #dee2e6;
         padding: 0.75rem;
         transition: all 0.3s ease;
     }
 
-    .form-control:focus, .form-select:focus {
+    .form-control:focus, .form-select:focus, textarea.form-control:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         transform: translateY(-1px);
     }
 
-    textarea.form-control {
-        min-height: 100px;
-        resize: vertical;
+    .form-label {
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .fw-semibold {
+        font-weight: 600;
     }
 
     .alert-info {
@@ -275,6 +322,14 @@
         color: #155724;
         border-radius: 10px;
         border-left: 4px solid #2e7d32;
+    }
+
+    .alert-warning {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border-color: #ffcc80;
+        color: #856404;
+        border-radius: 10px;
+        border-left: 4px solid #ef6c00;
     }
 
     .card.border-primary {
@@ -317,65 +372,33 @@
         border-color: #667eea;
     }
 
-    .form-label {
-        color: #2c3e50;
-        margin-bottom: 0.5rem;
-    }
-
     .invalid-feedback {
         font-size: 0.85rem;
         margin-top: 0.25rem;
-    }
-
-    .fw-semibold {
-        font-weight: 600;
     }
 </style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Автоматически добавляем классы к полям формы
-        const inputs = document.querySelectorAll('input[type="text"], input[type="number"], textarea, select');
-        inputs.forEach(input => {
-            input.classList.add('form-control');
-        });
-
-        // Данные об услугах (загружаются из Django template)
-        const serviceData = {
-            {% for service in form.fields.service.queryset %}
-            {{ service.id }}: {
-                name: "{{ service.name|escapejs }}",
-                description: "{{ service.short_description|escapejs }}",
-                price: {{ service.price }},
-                duration: {{ service.duration }},
-                max_capacity: {{ service.max_capacity }}
-            },
-            {% endfor %}
-        };
-
-        // Элементы DOM
+        // Данные об услугах
+        const serviceData = {{ services_json|safe }};
+    // Элементы DOM
         const serviceSelect = document.getElementById('{{ form.service.id_for_label }}');
         const participantsInput = document.getElementById('{{ form.participants.id_for_label }}');
+        const bookingDateInput = document.getElementById('{{ form.booking_date.id_for_label }}');
+        const startTimeInput = document.getElementById('{{ form.start_time.id_for_label }}');
         const serviceInfo = document.getElementById('service-info');
-        const serviceName = document.getElementById('service-name');
-        const serviceDescription = document.getElementById('service-description');
-        const servicePrice = document.getElementById('service-price');
-        const serviceDuration = document.getElementById('service-duration');
-        const serviceCapacity = document.getElementById('service-capacity');
-        const maxCapacitySpan = document.getElementById('max-capacity');
-        const endTimeDiv = document.getElementById('end-time');
-        const endTimeValue = document.getElementById('end-time-value');
-        const totalPriceSpan = document.getElementById('total-price');
 
-        // Обновление информации об услуге
+        // Функция обновления информации об услуге
         function updateServiceInfo() {
             const serviceId = serviceSelect.value;
+
             if (serviceId && serviceData[serviceId]) {
                 const service = serviceData[serviceId];
 
-                serviceName.textContent = service.name;
-                serviceDescription.textContent = service.description;
-                servicePrice.textContent = service.price + ' руб.';
+                document.getElementById('service-name').textContent = service.name;
+                document.getElementById('service-description').textContent = service.description;
+                document.getElementById('service-price').textContent = service.price + ' руб.';
 
                 // Форматирование длительности
                 const hours = Math.floor(service.duration / 60);
@@ -383,32 +406,345 @@
                 let durationText = '';
                 if (hours > 0) durationText += hours + ' ч ';
                 if (minutes > 0) durationText += minutes + ' мин';
-                serviceDuration.textContent = durationText.trim();
+                document.getElementById('service-duration').textContent = durationText.trim();
 
-                serviceCapacity.textContent = 'до ' + service.max_capacity + ' чел.';
-                maxCapacitySpan.textContent = service.max_capacity;
+                document.getElementById('service-capacity').textContent = 'до ' + service.max_capacity + ' чел.';
+                document.getElementById('max-capacity').textContent = service.max_capacity;
 
-                // Установка максимального значения для участников
-                participantsInput.max = service.max_capacity;
-                if (participantsInput.value > service.max_capacity) {
-                    participantsInput.value = service.max_capacity;
+                // Информация о времени бронирования
+                const bookingTimeBadge = document.getElementById('service-booking-time');
+                if (service.min_booking_hours > 0) {
+                    bookingTimeBadge.textContent = 'Бронировать за ' + service.min_booking_hours + ' ч.';
+                    bookingTimeBadge.style.display = 'inline-block';
+                } else {
+                    bookingTimeBadge.style.display = 'none';
+                }
+
+                // Устанавливаем максимальное значение для участников
+                if (participantsInput) {
+                    participantsInput.max = service.max_capacity;
+                    if (participantsInput.value > service.max_capacity) {
+                        participantsInput.value = service.max_capacity;
+                    }
                 }
 
                 serviceInfo.style.display = 'block';
                 updateTotalPrice();
+                updateTimeConstraints(service);
+                updateBookingTimeInfo(service);
                 updateEndTime();
             } else {
-                serviceInfo.style.display = 'none';
+                if (serviceInfo) serviceInfo.style.display = 'none';
+            }
+        }
+
+        // Функция обновления ограничений по времени
+        function updateTimeConstraints(service) {
+            if (!service || !bookingDateInput) return;
+
+            const now = new Date();
+
+            if (service.min_booking_hours > 0) {
+                // Рассчитываем минимальное доступное время
+                const minDatetime = new Date(now.getTime() + (service.min_booking_hours * 60 * 60 * 1000));
+                const minDate = minDatetime.toISOString().split('T')[0];
+
+                // Устанавливаем минимальную дату
+                bookingDateInput.min = minDate;
+
+                // Если текущая дата меньше минимальной, устанавливаем минимальную
+                if (bookingDateInput.value && bookingDateInput.value < minDate) {
+                    bookingDateInput.value = minDate;
+                }
+
+                // Если выбранная дата сегодня, устанавливаем минимальное время
+                if (bookingDateInput.value === minDate && startTimeInput) {
+                    // Рассчитываем минимальное время
+                    let minHour = minDatetime.getHours();
+                    let minMinute = minDatetime.getMinutes();
+    // Округляем до ближайших 15 минут в большую сторону
+                    minMinute = Math.ceil(minMinute / 15) * 15;
+                    if (minMinute >= 60) {
+                        minHour += 1;
+                        minMinute = 0;
+                    }
+
+                    const minTime = ${minHour.toString().padStart(2, '0')}:${minMinute.toString().padStart(2, '0')};
+                    startTimeInput.min = minTime;
+
+                    // Если текущее время меньше минимального, устанавливаем минимальное
+                    if (startTimeInput.value && startTimeInput.value < minTime) {
+                        startTimeInput.value = minTime;
+                    }
+                } else if (startTimeInput) {
+                    // Для будущих дат снимаем ограничение
+                    startTimeInput.min = '00:00';
+                }
+            }
+        }
+
+        // Функция обновления информации о времени бронирования
+        function updateBookingTimeInfo(service) {
+            const bookingTimeInfo = document.getElementById('booking-time-info');
+            const minBookingTimeText = document.getElementById('min-booking-time-text');
+            const currentBookingTime = document.getElementById('current-booking-time');
+            const availableTimeMsg = document.getElementById('available-booking-time');
+            const unavailableTimeMsg = document.getElementById('unavailable-booking-time');
+
+            if (!service ⠺⠞⠺⠺⠵⠺⠟⠞⠟⠟⠞⠟⠺⠺⠞⠵⠺⠞⠞ !bookingDateInput.value ⠞⠵⠞⠺⠵⠵⠟⠞⠺⠵⠵⠺⠺⠵⠵⠵⠟ !startTimeInput.value) {
+                if (bookingTimeInfo) bookingTimeInfo.style.display = 'none';
+                return;
+            }
+
+            const selectedDatetime = new Date(`${bookingDateInput.value}T${startTimeInput.value}`);
+            const now = new Date();
+
+            // Текст о минимальном времени бронирования
+            if (service.min_booking_hours > 0) {
+                minBookingTimeText.textContent =
+                    Эту услугу можно бронировать за ${service.min_booking_hours} часов до времени посещения.;
+            } else {
+                minBookingTimeText.textContent = 'Эту услугу можно бронировать в любое время.';
+            }
+
+            // Форматируем выбранное время
+            const selectedDateStr = selectedDatetime.toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const selectedTimeStr = selectedDatetime.toLocaleTimeString('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            currentBookingTime.textContent = Выбранное время: ${selectedDateStr} ${selectedTimeStr};
+
+            // Проверяем доступность времени
+            if (service.min_booking_hours > 0) {
+                const minBookingDatetime = new Date(now.getTime() + (service.min_booking_hours * 60 * 60 * 1000));
+
+                if (selectedDatetime < minBookingDatetime) {
+                    // Время недоступно
+                    availableTimeMsg.style.display = 'none';
+                    unavailableTimeMsg.style.display = 'block';
+
+                    const minTimeStr = minBookingDatetime.toLocaleString('ru-RU', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    unavailableTimeMsg.innerHTML =
+                        ⚠ Это время пока недоступно для бронирования. <br>Можно будет забронировать после ${minTimeStr};
+    bookingTimeInfo.className = 'alert alert-warning mb-4';
+                } else {
+                    // Время доступно
+                    availableTimeMsg.style.display = 'block';
+                    unavailableTimeMsg.style.display = 'none';
+                    availableTimeMsg.textContent = '✓ Это время доступно для бронирования';
+                    bookingTimeInfo.className = 'alert alert-info mb-4';
+                }
+            } else {
+                // Можно бронировать в любое время
+                availableTimeMsg.style.display = 'block';
+                unavailableTimeMsg.style.display = 'none';
+                availableTimeMsg.textContent = '✓ Эта услуга доступна для бронирования в любое время';
+                bookingTimeInfo.className = 'alert alert-info mb-4';
+            }
+
+            bookingTimeInfo.style.display = 'block';
+        }
+
+        // Функция расчета итоговой стоимости
+        function updateTotalPrice() {
+            const serviceId = serviceSelect.value;
+            const participants = parseInt(participantsInput.value) || 1;
+            const totalPriceSpan = document.getElementById('total-price');
+
+            if (serviceId && serviceData[serviceId]) {
+                const service = serviceData[serviceId];
+                const totalPrice = service.price * participants;
+                totalPriceSpan.textContent = totalPrice.toLocaleString('ru-RU');
+            } else {
                 totalPriceSpan.textContent = '0';
             }
         }
 
-        // Расчет времени окончания
+        function validateBookingTime(service, bookingDate, startTime) {
+    if (!service ⠞⠵⠞⠺⠺⠵⠟⠵⠞⠺⠵⠟⠟⠵ !startTime) {
+        return { isValid: false, message: 'Заполните дату и время' };
+    }
+
+    const selectedDatetime = new Date(`${bookingDate}T${startTime}`);
+    const now = new Date();
+
+    // Проверка, что время в будущем
+    if (selectedDatetime <= now) {
+        return { isValid: false, message: 'Выберите время в будущем' };
+    }
+
+    // Проверка минимального времени бронирования
+    if (service.min_booking_hours > 0) {
+        const minBookingDatetime = new Date(now.getTime() + (service.min_booking_hours * 60 * 60 * 1000));
+
+        if (selectedDatetime < minBookingDatetime) {
+            const minTimeStr = minBookingDatetime.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            return {
+                isValid: false,
+                message: Эту услугу можно бронировать не ранее чем за ${service.min_booking_hours} часов. Можно выбрать время с: ${minTimeStr}
+            };
+        }
+    }
+
+    return { isValid: true, message: '' };
+}
+
+        function updateSubmitButton() {
+    const submitBtn = document.getElementById('submit-btn');
+    const serviceId = serviceSelect.value;
+    const bookingDate = bookingDateInput ? bookingDateInput.value : '';
+    const startTime = startTimeInput ? startTimeInput.value : '';
+
+    // Проверяем обязательные поля
+    let isValid = true;
+    let errorMessage = '';
+
+    // Проверка выбора услуги
+    if (!serviceId) {
+        isValid = false;
+        errorMessage = 'Выберите услугу';
+    }
+
+    // Проверка выбора существующего клиента
+    const newCustomerChecked = newCustomerCheckbox ? newCustomerCheckbox.checked : false;
+    if (!newCustomerChecked) {
+        const customerSelected = existingCustomerSelect ? existingCustomerSelect.value : false;
+        if (!customerSelected) {
+            isValid = false;
+            errorMessage = 'Выберите клиента или создайте нового';
+        }
+    } else {
+        // Проверка обязательных полей нового клиента
+        const newFirstName = document.getElementById('{{ form.new_first_name.id_for_label }}');
+        const newLastName = document.getElementById('{{ form.new_last_name.id_for_label }}');
+        const newPhone = document.getElementById('{{ form.new_phone.id_for_label }}');
+    if (newFirstName && (!newFirstName.value || newFirstName.value.trim() === '')) {
+            isValid = false;
+            errorMessage = 'Заполните имя клиента';
+        }
+        if (newLastName && (!newLastName.value || newLastName.value.trim() === '')) {
+            isValid = false;
+            errorMessage = 'Заполните фамилию клиента';
+        }
+        if (newPhone && (!newPhone.value || newPhone.value.trim() === '')) {
+            isValid = false;
+            errorMessage = 'Заполните телефон клиента';
+        }
+    }
+
+    // Проверка даты и времени
+    if (!bookingDate || !startTime) {
+        isValid = false;
+        errorMessage = 'Заполните дату и время записи';
+    }
+
+    // Проверка минимального времени бронирования
+    if (serviceId && serviceData[serviceId]) {
+        const service = serviceData[serviceId];
+        if (service.min_booking_hours > 0 && bookingDate && startTime) {
+            const selectedDatetime = new Date(`${bookingDate}T${startTime}`);
+            const now = new Date();
+            const minBookingDatetime = new Date(now.getTime() + (service.min_booking_hours * 60 * 60 * 1000));
+
+            if (selectedDatetime < minBookingDatetime) {
+                isValid = false;
+                errorMessage = 'Выбрано слишком раннее время';
+            }
+        }
+    }
+
+        // Инициализируем валидацию формы
+        setupFormValidation();
+
+        // Первоначальная проверка
+        setTimeout(updateSubmitButton, 500);
+
+        // Периодическая проверка (на случай асинхронных изменений)
+        setInterval(updateSubmitButton, 1000);
+
+        // Проверка времени бронирования
+    if (serviceId && serviceData[serviceId] && bookingDate && startTime) {
+        const service = serviceData[serviceId];
+        const timeValidation = validateBookingTime(service, bookingDate, startTime);
+
+        if (!timeValidation.isValid) {
+            isValid = false;
+            errorMessage = timeValidation.message;
+        }
+    }
+    // Обновляем состояние кнопки
+    if (submitBtn) {
+        submitBtn.disabled = !isValid;
+
+        // Меняем стиль кнопки в зависимости от состояния
+        if (isValid) {
+            submitBtn.className = 'btn btn-primary';
+            submitBtn.title = 'Создать запись';
+        } else {
+            submitBtn.className = 'btn btn-secondary';
+            submitBtn.title = errorMessage || 'Заполните все обязательные поля';
+
+            // Добавляем tooltip для ошибки
+            if (!submitBtn.hasAttribute('data-bs-toggle')) {
+                submitBtn.setAttribute('data-bs-toggle', 'tooltip');
+                submitBtn.setAttribute('data-bs-placement', 'top');
+                submitBtn.setAttribute('data-bs-title', errorMessage || 'Заполните все обязательные поля');
+
+                // Инициализируем tooltip
+                if (typeof bootstrap !== 'undefined') {
+                    new bootstrap.Tooltip(submitBtn);
+                }
+            }
+        }
+    }
+
+    return isValid;
+}
+
+// Добавьте проверки на изменение всех полей формы
+function setupFormValidation() {
+    // Отслеживаем изменения во всех полях формы
+    const form = document.getElementById('booking-form');
+    if (form) {
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('change', updateSubmitButton);
+            input.addEventListener('input', updateSubmitButton);
+            input.addEventListener('blur', updateSubmitButton);
+        });
+    }
+
+    // Отслеживаем изменения в переключателе нового клиента
+    if (newCustomerCheckbox) {
+        newCustomerCheckbox.addEventListener('change', function() {
+            setTimeout(updateSubmitButton, 100); // Даем время на переключение
+        });
+    }
+}
+
+        // Функция расчета времени окончания
         function updateEndTime() {
             const serviceId = serviceSelect.value;
-            const startTimeInput = document.getElementById('{{ form.start_time.id_for_label }}');
-
-            if (serviceId && serviceData[serviceId] && startTimeInput.value) {
+            const endTimeDiv = document.getElementById('end-time');
+            const endTimeValue = document.getElementById('end-time-value');
+    if (serviceId && serviceData[serviceId] && startTimeInput && startTimeInput.value) {
                 const service = serviceData[serviceId];
                 const startTime = startTimeInput.value;
 
@@ -431,89 +767,32 @@
                 endTimeValue.textContent = endTimeStr;
                 endTimeDiv.style.display = 'block';
             } else {
-                endTimeDiv.style.display = 'none';
-            }
-        }
-
-        // Расчет общей стоимости
-        function updateTotalPrice() {
-            const serviceId = serviceSelect.value;
-            const participants = parseInt(participantsInput.value) || 1;
-
-            if (serviceId && serviceData[serviceId]) {
-                const service = serviceData[serviceId];
-                const totalPrice = service.price * participants;
-                totalPriceSpan.textContent = totalPrice.toLocaleString('ru-RU');
-            } else {
-                totalPriceSpan.textContent = '0';
-            }
-        }
-
-        // Проверка доступности времени
-        async function checkAvailability() {
-            const serviceId = serviceSelect.value;
-            const bookingDate = document.getElementById('{{ form.booking_date.id_for_label }}').value;
-            const startTime = document.getElementById('{{ form.start_time.id_for_label }}').value;
-
-            if (!serviceId || !bookingDate || !startTime) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/check-service-availability/?service_id=${serviceId}&date=${bookingDate}&start_time=${startTime}`);
-                const data = await response.json();
-
-                if (data.available) {
-                    // Время доступно
-                    endTimeDiv.classList.remove('text-danger');
-                    endTimeDiv.classList.add('text-muted');
-                    endTimeValue.textContent = data.end_time;
-                } else {
-                    // Время занято
-                    endTimeDiv.classList.remove('text-muted');
-                    endTimeDiv.classList.add('text-danger');
-                    endTimeValue.textContent = data.end_time + ' (занято)';
-
-                    // Показать предупреждение
-                    if (!document.getElementById('availability-warning')) {
-                        const warning = document.createElement('div');
-                        warning.id = 'availability-warning';
-                        warning.className = 'alert alert-warning mt-2';
-                        warning.innerHTML = `
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Это время уже занято. Выберите другое время.
-                        `;
-                        endTimeDiv.parentElement.appendChild(warning);
-                    }
-                }
-            } catch (error) {
-                console.error('Ошибка проверки доступности:', error);
+                if (endTimeDiv) endTimeDiv.style.display = 'none';
             }
         }
 
         // События
-        serviceSelect.addEventListener('change', function() {
-            updateServiceInfo();
-            if (this.value) {
-                checkAvailability();
-            }
-        });
+        if (serviceSelect) {
+            serviceSelect.addEventListener('change', updateServiceInfo);
+        }
 
-        participantsInput.addEventListener('input', updateTotalPrice);
+        if (participantsInput) {
+            participantsInput.addEventListener('input', updateTotalPrice);
+        }
 
-        const startTimeInput = document.getElementById('{{ form.start_time.id_for_label }}');
         if (startTimeInput) {
             startTimeInput.addEventListener('change', function() {
                 updateEndTime();
-                checkAvailability();
+                if (serviceSelect.value) {
+                    updateBookingTimeInfo(serviceData[serviceSelect.value]);
+                }
             });
         }
 
-        const bookingDateInput = document.getElementById('{{ form.booking_date.id_for_label }}');
         if (bookingDateInput) {
             bookingDateInput.addEventListener('change', function() {
-                if (serviceSelect.value && startTimeInput.value) {
-                    checkAvailability();
+                if (serviceSelect.value) {
+                    updateBookingTimeInfo(serviceData[serviceSelect.value]);
                 }
             });
         }
@@ -521,10 +800,6 @@
         // Инициализация
         if (serviceSelect.value) {
             updateServiceInfo();
-            setTimeout(() => {
-                updateEndTime();
-                checkAvailability();
-            }, 100);
         }
         updateTotalPrice();
 
