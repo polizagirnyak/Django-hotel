@@ -1,580 +1,1223 @@
 {% extends 'admin_panel/base.html' %}
 {% load static %}
- 
+
 {% block content %}
-<div class="form-container">
-    <div class="form-header">
-        <h1>Новое бронирование</h1>
-        <p class="form-subtitle">Создание бронирования с выбором свободного номера и информацией о клиенте</p>
+<div class="booking-create-container">
+    <div class="booking-header">
+        <h1>📋 Новое бронирование</h1>
+        <p class="booking-subtitle">Заполните информацию о клиенте и выберите номер для бронирования</p>
     </div>
- 
-    <!-- Форма поиска свободных номеров -->
-    <div class="search-card">
-        <h3>📅 Поиск свободных номеров</h3>
-        <form method="get" class="search-form">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="check_in" class="form-label">Дата заезда *</label>
-                    <input type="date" name="check_in" id="check_in" class="form-control"
-                           value="{{ check_in_date|default:'' }}" required
-                           min="{{ today|date:'Y-m-d' }}">
+
+    <!-- Шаги оформления -->
+    <div class="booking-steps">
+        <div class="step active">
+            <span class="step-number">1</span>
+            <span class="step-text">Выбор дат</span>
+        </div>
+        <div class="step {% if check_in_date and check_out_date %}active{% endif %}">
+            <span class="step-number">2</span>
+            <span class="step-text">Выбор клиента</span>
+        </div>
+        <div class="step">
+            <span class="step-number">3</span>
+            <span class="step-text">Выбор номера</span>
+        </div>
+        <div class="step">
+            <span class="step-number">4</span>
+            <span class="step-text">Подтверждение</span>
+        </div>
+    </div>
+
+    <!-- Блок поиска свободных номеров -->
+    <div class="search-block card">
+        <div class="card-header">
+            <h3><i class="fas fa-calendar-alt"></i> Выберите даты проживания</h3>
+        </div>
+        <div class="card-body">
+            <form method="get" class="search-form">
+                <div class="date-range-picker">
+                    <div class="date-input-group">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-sign-in-alt"></i></span>
+                            <input type="date" name="check_in" id="check_in" class="form-control"
+                                   value="{{ check_in_date|default:'' }}" required
+                                   min="{{ today|date:'Y-m-d' }}">
+                            <label for="check_in" class="input-label">Дата заезда</label>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-sign-out-alt"></i></span>
+                            <input type="date" name="check_out" id="check_out" class="form-control"
+                                   value="{{ check_out_date|default:'' }}" required
+                                   min="{{ today|date:'Y-m-d' }}">
+                            <label for="check_out" class="input-label">Дата выезда</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-search-dates">
+                        <i class="fas fa-search"></i> Найти свободные номера
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label for="check_out" class="form-label">Дата выезда *</label>
-                    <input type="date" name="check_out" id="check_out" class="form-control"
-                           value="{{ check_out_date|default:'' }}" required
-                           min="{{ today|date:'Y-m-d' }}">
+            </form>
+        </div>
+    </div>
+
+    {% if check_in_date and check_out_date %}
+    <div class="booking-content">
+        <!-- Левая колонка: Информация о клиенте -->
+        <div class="booking-left-column">
+            <!-- Выбор типа клиента -->
+            <div class="card customer-type-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-users"></i> Выбор клиента</h4>
+                </div>
+                <div class="card-body">
+                    <div class="customer-type-switch">
+                        <div class="switch-buttons">
+                            <button type="button" class="switch-btn {% if new_customer %}active{% endif %}"
+                                    onclick="switchCustomerType('new')">
+                                <i class="fas fa-user-plus"></i> Новый клиент
+                            </button>
+                            <button type="button" class="switch-btn {% if not new_customer %}active{% endif %}"
+                                    onclick="switchCustomerType('existing')">
+                                <i class="fas fa-user-check"></i> Существующий клиент
+                            </button>
+                        </div>
+
+                        <!-- Скрытые радиокнопки для формы -->
+                        <input type="hidden" name="customer_option" id="customer_option"
+                               value="{% if new_customer %}new{% else %}existing{% endif %}">
+                    </div>
+
+                    <!-- Поиск существующего клиента -->
+                    <div id="existingCustomerSearch" class="customer-search-block"
+                         style="display: {% if not new_customer %}block{% else %}none{% endif %};">
+                        <div class="search-input-group">
+                            <div class="input-with-icon">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="customerSearch" class="form-control"
+                                       placeholder="Введите фамилию, телефон или email...">
+                            </div>
+                            <div id="customerSearchResults" class="search-results"></div>
+                        </div>
+
+                        <input type="hidden" name="customer_id" id="selectedCustomerId"
+                               value="{% if not new_customer and customer_form.instance.id %}{{ customer_form.instance.id }}{% endif %}">
+
+                        <!-- Быстрые клиенты -->
+                        {% if customers %}
+                        <div class="quick-customers">
+                            <h5><i class="fas fa-history"></i> Недавние клиенты</h5>
+                            <div class="quick-customers-grid">
+                                {% for customer in customers %}
+                                <div class="quick-customer-card"
+                                     onclick="loadCustomerData({{ customer.id }})">
+                                    <div class="customer-avatar">
+                                        {{ customer.first_name|first }}{{ customer.last_name|first }}
+                                    </div>
+                                    <div class="customer-details">
+                                        <div class="customer-name">{{ customer.last_name }} {{ customer.first_name }}</div>
+                                        <div class="customer-phone">{{ customer.phone }}</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary">
-                🔍 Найти свободные номера
-            </button>
-        </form>
-    </div>
- 
-    {% if check_in_date and check_out_date %}
-    <form method="post" class="booking-form">
-        {% csrf_token %}
- 
-        <div class="form-columns">
-            <!-- Информация о клиенте -->
-            <div class="form-column">
-                <div class="form-section">
-                    <h3>👤 Информация о клиенте</h3>
- 
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="{{ customer_form.first_name.id_for_label }}" class="form-label">
-                                Имя *
-                            </label>
-                            {{ customer_form.first_name }}
-                            {% if customer_form.first_name.errors %}
-                            <div class="error-message">
-                                {% for error in customer_form.first_name.errors %}
-                                <span class="error-icon">⚠</span> {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
- 
-                        <div class="form-group">
-                            <label for="{{ customer_form.last_name.id_for_label }}" class="form-label">
-                                Фамилия *
-                            </label>
-                            {{ customer_form.last_name }}
-                            {% if customer_form.last_name.errors %}
-                            <div class="error-message">
-                                {% for error in customer_form.last_name.errors %}
-                                <span class="error-icon">⚠</span> {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
- 
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="{{ customer_form.email.id_for_label }}" class="form-label">
-                                Email *
-                            </label>
-                            {{ customer_form.email }}
-                            {% if customer_form.email.errors %}
-                            <div class="error-message">
-                                {% for error in customer_form.email.errors %}
-                                <span class="error-icon">⚠</span> {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
- 
-                        <div class="form-group">
-                            <label for="{{ customer_form.phone.id_for_label }}" class="form-label">
-                                Телефон *
-                            </label>
-                            {{ customer_form.phone }}
-                            {% if customer_form.phone.errors %}
-                            <div class="error-message">
-                                {% for error in customer_form.phone.errors %}
-                                <span class="error-icon">⚠</span> {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
- 
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="{{ customer_form.passport_number.id_for_label }}" class="form-label">
-                                Паспорт *
-                            </label>
-                            {{ customer_form.passport_number }}
-                            {% if customer_form.passport_number.errors %}
-                            <div class="error-message">
-                                {% for error in customer_form.passport_number.errors %}
-                                <span class="error-icon">⚠</span> {{ error }}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
- 
-<div class="form-group">
-    <label for="birthday_field" class="form-label">
-        Дата рождения *
-    </label>
-    <input type="date"
-           name="birthday"
-           id="birthday_field"
-           class="form-control"
-           value="{{ customer_form.birthday.value|default:'' }}"
-           min="1900-01-01"
-           max="{% now 'Y-m-d' %}"
-           pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
-           required
-           oninput="validateBirthday(this)">
-    {% if customer_form.birthday.errors %}
-    <div class="error-message">
-        {% for error in customer_form.birthday.errors %}
-        <span class="error-icon">⚠️</span> {{ error }}
-        {% endfor %}
-    </div>
-    {% endif %}
-    <div class="form-help">
-        Диапазон дат: 01.01.1900 - {% now "d.m.Y" %}
-    </div>
-</div>
-                    </div>
-                    </div>
+
+            <!-- Форма данных клиента -->
+            <div class="card customer-form-card" id="customerInfoSection">
+                <div class="card-header">
+                    <h4><i class="fas fa-user-circle"></i> Данные клиента</h4>
                 </div>
- 
-            <!-- Информация о бронировании -->
-            <div class="form-column">
-                <div class="form-section">
-                    <h3>🏨 Информация о бронировании</h3>
- 
-                    <!-- Даты бронирования -->
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="{{ booking_form.check_in_date.id_for_label }}" class="form-label">
-                                Дата заезда *
-                            </label>
-                            <input type="date" name="check_in_date" id="id_check_in_date"
-                                   class="form-control" value="{{ check_in_date }}" readonly>
+                <div class="card-body">
+                    <!-- Используем Django форму для всех полей -->
+                    <form id="customerForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="{{ customer_form.first_name.id_for_label }}" class="form-label">
+                                    <i class="fas fa-user"></i> Имя *
+                                </label>
+                                {{ customer_form.first_name }}
+                                <div id="first_name_errors" class="error-message">
+                                    {% if customer_form.first_name.errors %}
+                                    {% for error in customer_form.first_name.errors %}
+                                    <span class="error-icon">⚠</span> {{ error }}
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="{{ customer_form.last_name.id_for_label }}" class="form-label">
+                                    <i class="fas fa-user"></i> Фамилия *
+                                </label>
+                                {{ customer_form.last_name }}
+                                <div id="last_name_errors" class="error-message">
+                                    {% if customer_form.last_name.errors %}
+                                    {% for error in customer_form.last_name.errors %}
+                                    <span class="error-icon">⚠</span> {{ error }}
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
- 
-                        <div class="form-group">
-                            <label for="{{ booking_form.check_out_date.id_for_label }}" class="form-label">
-                                Дата выезда *
-                            </label>
-                            <input type="date" name="check_out_date" id="id_check_out_date"
-                                   class="form-control" value="{{ check_out_date }}" readonly>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="{{ customer_form.email.id_for_label }}" class="form-label">
+                                    <i class="fas fa-envelope"></i> Email *
+                                </label>
+                                {{ customer_form.email }}
+                                <div id="email_errors" class="error-message">
+                                    {% if customer_form.email.errors %}
+                                    {% for error in customer_form.email.errors %}
+                                    <span class="error-icon">⚠</span> {{ error }}
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="{{ customer_form.phone.id_for_label }}" class="form-label">
+                                    <i class="fas fa-phone"></i> Телефон *
+                                </label>
+                                {{ customer_form.phone }}
+                                <div id="phone_errors" class="error-message">
+                                    {% if customer_form.phone.errors %}
+                                    {% for error in customer_form.phone.errors %}
+                                    <span class="error-icon">⚠</span> {{ error }}
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="{{ customer_form.passport_number.id_for_label }}" class="form-label">
+                                    <i class="fas fa-passport"></i> Паспорт *
+                                </label>
+                                {{ customer_form.passport_number }}
+                                <div id="passport_number_errors" class="error-message">
+                                    {% if customer_form.passport_number.errors %}
+                                    {% for error in customer_form.passport_number.errors %}
+                                    <span class="error-icon">⚠</span> {{ error }}
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="{{ customer_form.birthday.id_for_label }}" class="form-label">
+                                    <i class="fas fa-birthday-cake"></i> Дата рождения *
+                                </label>
+                                <div class="date-input-wrapper">
+                                    {{ customer_form.birthday }}
+                                    <i class="fas fa-calendar date-icon"></i>
+                                </div>
+                                <div id="birthday_errors" class="error-message">
+                                    {% if customer_form.birthday.errors %}
+                                    {% for error in customer_form.birthday.errors %}
+                                    <span class="error-icon">⚠</span> {{ error }}
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="form-help">
+                                    От 18 до 120 лет
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div id="customerSuggestions" class="suggestions-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая колонка: Информация о бронировании -->
+        <div class="booking-right-column">
+            <!-- Карточка бронирования -->
+            <div class="card booking-details-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-hotel"></i> Детали бронирования</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Выбранные даты -->
+                    <div class="selected-dates">
+                        <div class="date-item">
+                            <span class="date-label">Заезд:</span>
+                            <span class="date-value">{{ check_in_date }}</span>
+                        </div>
+                        <div class="date-item">
+                            <span class="date-label">Выезд:</span>
+                            <span class="date-value">{{ check_out_date }}</span>
+                        </div>
+                        <div class="date-item">
+                            <span class="date-label">Ночей:</span>
+                            <span class="date-value" id="nights-count">0</span>
                         </div>
                     </div>
- 
+
+                    <!-- Скрытые поля дат -->
+                    <input type="hidden" name="check_in_date" id="id_check_in_date" value="{{ check_in_date }}">
+                    <input type="hidden" name="check_out_date" id="id_check_out_date" value="{{ check_out_date }}">
+
                     <!-- Выбор номера -->
                     <div class="form-group">
                         <label for="{{ booking_form.room.id_for_label }}" class="form-label">
-                            Выберите номер *
+                            <i class="fas fa-door-closed"></i> Выберите номер *
                         </label>
-                        {{ booking_form.room }}
-                        {% if booking_form.room.errors %}
-                        <div class="error-message">
+                        <div class="room-select-wrapper">
+                            {{ booking_form.room }}
+                            <i class="fas fa-chevron-down select-arrow"></i>
+                        </div>
+                        <div id="room_errors" class="error-message">
+                            {% if booking_form.room.errors %}
                             {% for error in booking_form.room.errors %}
                             <span class="error-icon">⚠</span> {{ error }}
                             {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        {% if available_rooms %}
+                        <div class="available-count">
+                            <i class="fas fa-check-circle"></i>
+                            Доступно номеров: <strong>{{ available_rooms.count }}</strong>
                         </div>
                         {% endif %}
- 
-                        {% if available_rooms %}
-                            <div class="available-rooms-info">
-                                <small>Найдено свободных номеров: {{ available_rooms.count }}</small>
-                            </div>
-                        {% endif %}
                     </div>
- 
+
                     <!-- Особые пожелания -->
                     <div class="form-group">
                         <label for="{{ booking_form.special_requests.id_for_label }}" class="form-label">
-                            Особые пожелания
+                            <i class="fas fa-star"></i> Особые пожелания
                         </label>
                         {{ booking_form.special_requests }}
                     </div>
- 
-                    <!-- Предварительный расчет -->
-                    <div class="price-calculation">
-                        <h4>💰 Расчет стоимости</h4>
-                        <div class="price-details">
-                            <div class="price-row">
-                                <span>Количество ночей:</span>
-                                <span id="nights-count">0</span>
-                            </div>
-                            <div class="price-row">
+
+                    <!-- Расчет стоимости -->
+                    <div class="price-summary">
+                        <h5><i class="fas fa-calculator"></i> Расчет стоимости</h5>
+                        <div class="price-breakdown">
+                            <div class="price-item">
                                 <span>Цена за ночь:</span>
                                 <span id="price-per-night">0 руб.</span>
                             </div>
-                            <div class="price-row total">
-                                <strong>Общая стоимость:</strong>
-                                <strong id="total-price">0 руб.</strong>
+                            <div class="price-item">
+                                <span>Количество ночей:</span>
+                                <span id="nights-display">0</span>
+                            </div>
+                            <div class="price-divider"></div>
+                            <div class="price-total">
+                                <span>Итого к оплате:</span>
+                                <span id="total-price">0 руб.</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
- 
-        <!-- Кнопки действия -->
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
-                <span class="btn-icon">✓</span>
-                Создать бронирование
-            </button>
-            <a href="{% url 'rooms_dashboard' %}" class="btn btn-secondary">
-                <span class="btn-icon">←</span>
-                Отмена
-            </a>
-        </div>
-    </form>
-    {% endif %}
- 
-    <!-- Список доступных номеров -->
-    {% if available_rooms %}
-    <div class="available-rooms-section">
-        <h3>🛏️ Доступные номера</h3>
-        <div class="rooms-grid">
-            {% for room in available_rooms %}
-            <div class="room-card" data-room-id="{{ room.id }}" data-price="{{ room.room_type.price_per_night }}">
-                <div class="room-header">
-                    <span class="room-number">{{ room.room_number }}</span>
-                    <span class="room-price">{{ room.room_type.price_per_night }} руб./ночь</span>
+
+            <!-- Список доступных номеров -->
+            {% if available_rooms %}
+            <div class="card available-rooms-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-bed"></i> Доступные номера ({{ available_rooms.count }})</h4>
                 </div>
-                <div class="room-type">{{ room.room_type.name }}</div>
-                <div class="room-details">
-                    <span class="room-capacity">👥 {{ room.room_type.capacity }} чел.</span>
-                    <span class="room-floor">🏢 {{ room.floor }} этаж</span>
+                <div class="card-body">
+                    <div class="rooms-grid">
+                        {% for room in available_rooms %}
+                        <div class="room-card {% if room.id == booking_form.room.value|add:'0' %}selected{% endif %}"
+                             data-room-id="{{ room.id }}"
+                             data-price="{{ room.room_type.price_per_night }}"
+                             onclick="selectRoom({{ room.id }})">
+                            <div class="room-header">
+                                <div class="room-number">№{{ room.room_number }}</div>
+                                <div class="room-price">{{ room.room_type.price_per_night }} ₽/ночь</div>
+                            </div>
+                            <div class="room-type">{{ room.room_type.name }}</div>
+                            <div class="room-details">
+                                <span class="room-feature">
+                                    <i class="fas fa-user-friends"></i> {{ room.room_type.capacity }} чел.
+                                </span>
+                                <span class="room-feature">
+                                    <i class="fas fa-layer-group"></i> {{ room.floor }} этаж
+                                </span>
+                            </div>
+                            {% if room.features %}
+                            <div class="room-features">
+                                <i class="fas fa-gem"></i> {{ room.features|truncatechars:50 }}
+                            </div>
+                            {% endif %}
+                            <button type="button" class="select-room-btn">
+                                <i class="fas fa-check"></i> Выбрать
+                            </button>
+                        </div>
+                        {% empty %}
+                        <div class="no-rooms">
+                            <i class="fas fa-bed fa-3x"></i>
+                            <p>На выбранные даты свободных номеров не найдено.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
-                {% if room.features %}
-                <div class="room-features">
-                    <strong>Особенности:</strong> {{ room.features }}
-                </div>
-                {% endif %}
-                <button type="button" class="select-room-btn" onclick="selectRoom({{ room.id }})">
-                    Выбрать этот номер
-                </button>
             </div>
-            {% empty %}
-            <div class="no-rooms">
-                <p>На выбранные даты свободных номеров не найдено.</p>
+            {% endif %}
+
+            <!-- Кнопки действия -->
+            <div class="action-buttons">
+                <form method="post" class="booking-form" id="bookingForm">
+                    {% csrf_token %}
+                    <!-- Скрытые поля для типа клиента -->
+                    <input type="hidden" name="customer_option" id="hidden_customer_option"
+                           value="{% if new_customer %}new{% else %}existing{% endif %}">
+                    <input type="hidden" name="customer_id" id="hidden_customer_id"
+                           value="{% if not new_customer and customer_form.instance.id %}{{ customer_form.instance.id }}{% endif %}">
+
+                    <div class="button-group">
+                        <button type="submit" class="btn-create-booking">
+                            <i class="fas fa-check-circle"></i> Создать бронирование
+                        </button>
+                        <a href="{% url 'rooms_dashboard' %}" class="btn-cancel">
+                            <i class="fas fa-times"></i> Отмена
+                        </a>
+                    </div>
+                </form>
             </div>
-            {% endfor %}
         </div>
     </div>
     {% endif %}
 </div>
- 
+
 <style>
-    /* Основные стили */
-    .form-container {
-        max-width: 1200px;
+    /* Основной контейнер */
+    .booking-create-container {
+        max-width: 1400px;
         margin: 0 auto;
-        padding: 2rem 1rem;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }
- 
-    .form-header {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
- 
-    .form-header h1 {
-        color: #2c3e50;
-        font-size: 2.25rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
- 
-    .form-subtitle {
-        color: #7f8c8d;
-        font-size: 1.1rem;
-        margin: 0;
-    }
- 
-    /* Карточка поиска */
-    .search-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        margin-bottom: 2rem;
-        border-left: 4px solid #667eea;
-    }
- 
-    .search-card h3 {
-        color: #2c3e50;
-        margin-bottom: 1rem;
-    }
- 
-    /* Колонки формы */
-    .form-columns {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 2rem;
-        margin-bottom: 2rem;
-    }
- 
-    .form-section {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        height: fit-content;
-    }
- 
-    .form-section h3 {
-        color: #2c3e50;
-        margin-bottom: 1.5rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid #f1f3f4;
-    }
- 
-    /* Сетка формы */
-    .form-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
- 
-    .form-group {
-        margin-bottom: 1rem;
-    }
- 
-    .form-label {
-        color: #2c3e50;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        display: block;
-        font-size: 0.9rem;
-    }
- 
-    /* Поля ввода */
-    .form-control {
-        width: 100%;
-        padding: 0.75rem;
-        border: 2px solid #e9ecef;
-        border-radius: 6px;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        box-sizing: border-box;
-    }
- 
-    .form-control:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
- 
-    /* Расчет стоимости */
-    .price-calculation {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-    }
- 
-    .price-calculation h4 {
-        color: #2c3e50;
-        margin-bottom: 1rem;
-    }
- 
-    .price-details {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
- 
-    .price-row {
+
+    /* Шаги оформления */
+    .booking-steps {
         display: flex;
         justify-content: space-between;
-        padding: 0.25rem 0;
+        margin: 30px 0 40px;
+        position: relative;
     }
- 
-    .price-row.total {
-        border-top: 1px solid #dee2e6;
-        padding-top: 0.75rem;
-        margin-top: 0.5rem;
-        font-size: 1.1rem;
+
+    .booking-steps::before {
+        content: '';
+        position: absolute;
+        top: 15px;
+        left: 10%;
+        right: 10%;
+        height: 2px;
+        background: #e0e0e0;
+        z-index: 1;
+    }
+
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        z-index: 2;
+        flex: 1;
+    }
+
+    .step-number {
+        width: 30px;
+        height: 30px;
+        background: #fff;
+        border: 2px solid #e0e0e0;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        color: #999;
+        margin-bottom: 8px;
+    }
+
+    .step.active .step-number {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+
+    .step-text {
+        font-size: 14px;
+        color: #999;
+        text-align: center;
+    }
+
+    .step.active .step-text {
+        color: #667eea;
+        font-weight: 500;
+    }
+
+    /* Заголовок */
+    .booking-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .booking-header h1 {
         color: #2c3e50;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 8px;
     }
- 
-    /* Сетка доступных номеров */
-    .available-rooms-section {
-        margin-top: 2rem;
+
+    .booking-subtitle {
+        color: #7f8c8d;
+        font-size: 16px;
+        margin: 0;
     }
- 
+
+    /* Карточки */
+    .card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+        border: none;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+
+    .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .card-header h4 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    /* Поиск дат */
+    .search-block {
+        margin-bottom: 30px;
+    }
+
+    .date-range-picker {
+        display: flex;
+        gap: 20px;
+        align-items: flex-end;
+    }
+
+    .date-input-group {
+        display: flex;
+        gap: 15px;
+        flex: 1;
+    }
+
+    .input-group {
+        flex: 1;
+        position: relative;
+    }
+
+    .input-group-text {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-right: none;
+    }
+
+    .input-label {
+        position: absolute;
+        top: -20px;
+        left: 0;
+        font-size: 12px;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    .btn-search-dates {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-search-dates:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    /* Основной контент в две колонки */
+    .booking-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-top: 20px;
+    }
+
+    /* Левая колонка */
+    .booking-left-column {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    /* Переключатель типа клиента */
+    .customer-type-switch {
+        margin-bottom: 20px;
+    }
+
+    .switch-buttons {
+        display: flex;
+        gap: 10px;
+        background: #f8f9fa;
+        padding: 4px;
+        border-radius: 8px;
+    }
+
+    .switch-btn {
+        flex: 1;
+        padding: 12px 16px;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .switch-btn.active {
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        color: #667eea;
+    }
+
+    /* Поиск клиентов */
+    .customer-search-block {
+        margin-top: 20px;
+    }
+
+    .search-input-group {
+        position: relative;
+    }
+
+    .input-with-icon {
+        position: relative;
+    }
+
+    .input-with-icon i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+
+    .input-with-icon input {
+        padding-left: 40px;
+    }
+
+    /* Результаты поиска */
+    .search-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        display: none;
+    }
+
+    .customer-result-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid #f1f3f4;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .customer-result-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .customer-result-name {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 4px;
+    }
+
+    .customer-result-info {
+        display: flex;
+        gap: 15px;
+        font-size: 13px;
+        color: #6c757d;
+    }
+
+    /* Быстрые клиенты */
+    .quick-customers {
+        margin-top: 20px;
+    }
+
+    .quick-customers h5 {
+        color: #2c3e50;
+        margin-bottom: 12px;
+        font-size: 15px;
+    }
+
+    .quick-customers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
+    .quick-customer-card {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .quick-customer-card:hover {
+        background: white;
+        border-color: #667eea;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.1);
+    }
+
+    .customer-avatar {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .customer-details {
+        flex: 1;
+    }
+
+    .customer-name {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+
+    .customer-phone {
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    /* Форма клиента */
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: #2c3e50;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none;
+    }
+
+    .date-input-wrapper {
+        position: relative;
+    }
+
+    .date-input-wrapper input[type="date"] {
+        padding-right: 40px;
+    }
+
+    .date-icon {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        pointer-events: none;
+    }
+
+    .form-help {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+    }
+
+    /* Предложения клиентов */
+    .suggestions-container {
+        margin-top: 15px;
+    }
+
+    .suggestion-alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid;
+    }
+
+    .suggestion-alert.info {
+        background: #e3f2fd;
+        border-left-color: #2196f3;
+    }
+
+    .suggestion-alert.warning {
+        background: #fff3e0;
+        border-left-color: #ff9800;
+    }
+
+    .suggestion-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 8px;
+    }
+
+    /* Правая колонка */
+    .booking-right-column {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    /* Даты бронирования */
+    .selected-dates {
+        display: flex;
+        justify-content: space-between;
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .date-item {
+        text-align: center;
+    }
+
+    .date-label {
+        display: block;
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .date-value {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 16px;
+    }
+
+    /* Выбор номера */
+    .room-select-wrapper {
+        position: relative;
+    }
+
+    .select-arrow {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        pointer-events: none;
+    }
+
+    .available-count {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #28a745;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Расчет стоимости */
+    .price-summary {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+
+    .price-summary h5 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .price-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .price-item {
+        display: flex;
+        justify-content: space-between;
+        color: #6c757d;
+        font-size: 14px;
+    }
+
+    .price-divider {
+        height: 1px;
+        background: #dee2e6;
+        margin: 10px 0;
+    }
+
+    .price-total {
+        display: flex;
+        justify-content: space-between;
+        font-size: 18px;
+        font-weight: 700;
+        color: #2c3e50;
+        padding-top: 10px;
+        border-top: 2px solid #dee2e6;
+    }
+
+    /* Карточки номеров */
     .rooms-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 5px;
     }
- 
+
     .room-card {
         background: white;
         border: 2px solid #e9ecef;
-        border-radius: 8px;
-        padding: 1rem;
+        border-radius: 10px;
+        padding: 15px;
+        cursor: pointer;
         transition: all 0.3s ease;
     }
- 
+
     .room-card:hover {
         border-color: #667eea;
         transform: translateY(-2px);
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
- 
+
     .room-card.selected {
         border-color: #4CAF50;
         background: #f8fff8;
     }
- 
+
     .room-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.5rem;
+        margin-bottom: 8px;
     }
- 
+
     .room-number {
-        font-size: 1.25rem;
+        font-size: 20px;
         font-weight: 700;
         color: #2c3e50;
     }
- 
+
     .room-price {
         font-weight: 600;
         color: #4CAF50;
+        font-size: 14px;
     }
- 
+
     .room-type {
         font-weight: 600;
         color: #667eea;
-        margin-bottom: 0.5rem;
+        margin-bottom: 10px;
+        font-size: 15px;
     }
- 
+
     .room-details {
         display: flex;
-        gap: 1rem;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
+        gap: 15px;
+        margin-bottom: 10px;
+        font-size: 13px;
         color: #6c757d;
     }
- 
-    .room-features {
-        font-size: 0.85rem;
-        color: #5d6d7e;
-        margin-bottom: 1rem;
+
+    .room-feature {
+        display: flex;
+        align-items: center;
+        gap: 4px;
     }
- 
+
+    .room-features {
+        font-size: 12px;
+        color: #5d6d7e;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .select-room-btn {
         width: 100%;
-        padding: 0.5rem;
+        padding: 8px;
         background: #667eea;
         color: white;
         border: none;
-        border-radius: 4px;
+        border-radius: 6px;
+        font-weight: 500;
         cursor: pointer;
         transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
     }
- 
+
     .select-room-btn:hover {
         background: #5a6fd8;
     }
- 
-    /* Кнопки */
-    .btn {
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 6px;
-        font-size: 1rem;
-        font-weight: 600;
-        text-decoration: none;
-        text-align: center;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
+
+    /* Кнопки действия */
+    .action-buttons {
+        margin-top: 20px;
     }
- 
-    .btn-primary {
+
+    .button-group {
+        display: flex;
+        gap: 15px;
+    }
+
+    .btn-create-booking {
+        flex: 1;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
+        border: none;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
     }
- 
-    .btn-primary:hover {
+
+    .btn-create-booking:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
     }
- 
-    .btn-secondary {
+
+    .btn-cancel {
+        padding: 15px 30px;
         background: white;
         color: #667eea;
         border: 2px solid #667eea;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.3s ease;
     }
- 
-    .btn-secondary:hover {
+
+    .btn-cancel:hover {
         background: #667eea;
         color: white;
     }
- 
-    .form-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 2rem;
-    }
- 
+
     /* Сообщения об ошибках */
     .error-message {
         color: #e74c3c;
-        font-size: 0.85rem;
-        margin-top: 0.25rem;
+        font-size: 13px;
+        margin-top: 5px;
         display: flex;
         align-items: center;
-        gap: 0.25rem;
+        gap: 5px;
+        min-height: 20px;
     }
- 
+
     .error-icon {
-        font-size: 0.8rem;
+        font-size: 12px;
     }
- 
+
     /* Адаптивность */
-    @media (max-width: 768px) {
-        .form-columns {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
- 
-        .form-grid {
+    @media (max-width: 1200px) {
+        .booking-content {
             grid-template-columns: 1fr;
         }
- 
-        .rooms-grid {
-            grid-template-columns: 1fr;
+
+        .date-range-picker {
+            flex-direction: column;
+            align-items: stretch;
         }
- 
-        .form-actions {
+
+        .date-input-group {
             flex-direction: column;
         }
     }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+
+        .button-group {
+            flex-direction: column;
+        }
+
+        .switch-buttons {
+            flex-direction: column;
+        }
+
+        .rooms-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .quick-customers-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
- 
+
 <script>
+    // Таймеры для задержки поиска
+    let searchTimeout;
+    let lastNameTimeout;
+    let phoneTimeout;
+
     document.addEventListener('DOMContentLoaded', function() {
         const checkInInput = document.getElementById('check_in');
         const checkOutInput = document.getElementById('check_out');
         const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
- 
+        const customerSearchInput = document.getElementById('customerSearch');
+
+        // Элементы формы клиента
+        const firstNameInput = document.getElementById('{{ customer_form.first_name.id_for_label }}');
+        const lastNameInput = document.getElementById('{{ customer_form.last_name.id_for_label }}');
+        const phoneInput = document.getElementById('{{ customer_form.phone.id_for_label }}');
+        const birthdayInput = document.getElementById('{{ customer_form.birthday.id_for_label }}');
+
+        // Инициализация типа клиента
+        updateCustomerType();
+
+        // Поиск клиентов при вводе (для существующих)
+        if (customerSearchInput) {
+            customerSearchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                currentSearchQuery = this.value.trim();
+
+                if (currentSearchQuery.length >= 2) {
+                    searchTimeout = setTimeout(() => {
+                        searchCustomers();
+                    }, 500);
+                } else {
+                    hideSearchResults();
+                }
+            });
+
+            // Закрытие результатов при клике вне поля
+            document.addEventListener('click', function(e) {
+                const resultsContainer = document.getElementById('customerSearchResults');
+                if (!customerSearchInput.contains(e.target) &&
+                    !(resultsContainer && resultsContainer.contains(e.target))) {
+                    hideSearchResults();
+                }
+            });
+        }
+
+        // Поиск при вводе фамилии (для нового клиента)
+        if (lastNameInput) {
+            lastNameInput.addEventListener('input', function() {
+                clearTimeout(lastNameTimeout);
+                const lastName = this.value.trim();
+
+                if (lastName.length >= 2 && isNewCustomer()) {
+                    lastNameTimeout = setTimeout(() => {
+                        searchSimilarCustomers(lastName, 'last_name');
+                    }, 500);
+                } else {
+                    clearSuggestions();
+                }
+            });
+        }
+
+        // Поиск при вводе телефона (для нового клиента)
+        if (phoneInput) {
+            phoneInput.addEventListener('input', function() {
+                clearTimeout(phoneTimeout);
+                const phone = this.value.trim();
+
+                if (phone.length >= 5 && isNewCustomer()) {
+                    phoneTimeout = setTimeout(() => {
+                        searchSimilarCustomers(phone, 'phone');
+                    }, 500);
+                } else {
+                    clearSuggestions();
+                }
+            });
+        }
+
         // Обновление минимальной даты выезда
-        if (checkInInput) {
+        if (checkInInput && checkOutInput) {
             checkInInput.addEventListener('change', function() {
                 if (checkOutInput) {
                     checkOutInput.min = this.value;
@@ -584,75 +1227,17 @@
                 }
             });
         }
- 
+
         // Расчет стоимости при выборе номера
         if (roomSelect) {
             roomSelect.addEventListener('change', calculatePrice);
         }
- 
+
         // Инициализация расчета
         calculatePrice();
-    });
- 
-    function calculatePrice() {
-        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
-        const checkIn = document.getElementById('id_check_in_date').value;
-        const checkOut = document.getElementById('id_check_out_date').value;
-        const nightsCount = document.getElementById('nights-count');
-        const pricePerNight = document.getElementById('price-per-night');
-        const totalPrice = document.getElementById('total-price');
- 
-        if (!checkIn || !checkOut || !roomSelect.value) {
-            nightsCount.textContent = '0';
-            pricePerNight.textContent = '0 руб.';
-            totalPrice.textContent = '0 руб.';
-            return;
-        }
- 
-        const start = new Date(checkIn);
-        const end = new Date(checkOut);
-        const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
- 
-        // Получаем цену из выбранного option
-        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
-        const roomPrice = selectedOption.getAttribute('data-price') || '0';
- 
-        const total = nights * parseFloat(roomPrice);
- 
-        nightsCount.textContent = nights;
-        pricePerNight.textContent = roomPrice + ' руб.';
-        totalPrice.textContent = total.toFixed(2) + ' руб.';
-    }
- 
-    function selectRoom(roomId) {
-        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
-        roomSelect.value = roomId;
- 
-        // Снимаем выделение со всех карточек
-        document.querySelectorAll('.room-card').forEach(card => {
-            card.classList.remove('selected');
-        });
- 
-        // Выделяем выбранную карточку
-        const selectedCard = document.querySelector(`[data-room-id="${roomId}"]`);
-        if (selectedCard) {
-            selectedCard.classList.add('selected');
-        }
- 
-        // Пересчитываем стоимость
-        calculatePrice();
- 
-        // Прокручиваем к форме
-        document.querySelector('.booking-form').scrollIntoView({
-            behavior: 'smooth'
-        });
-    }
- 
-    // Добавляем data-price к options при загрузке
-    document.addEventListener('DOMContentLoaded', function() {
-        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+
+        // Добавляем data-price к options
         if (roomSelect) {
-            // Находим все карточки номеров и добавляем данные в select
             document.querySelectorAll('.room-card').forEach(card => {
                 const roomId = card.getAttribute('data-room-id');
                 const roomPrice = card.getAttribute('data-price');
@@ -662,58 +1247,483 @@
                 }
             });
         }
+
+        // Если выбран существующий клиент, загружаем его данные
+        const customerId = document.getElementById('selectedCustomerId').value;
+        if (customerId && !isNewCustomer()) {
+            loadCustomerData(customerId);
+        }
+
+        // Обновляем скрытые поля перед отправкой формы
+        const bookingForm = document.getElementById('bookingForm');
+        if (bookingForm) {
+            bookingForm.addEventListener('submit', function(e) {
+                updateHiddenFields();
+            });
+        }
     });
-function validateBirthday(input) {
-    const value = input.value;
-    if (!value) return;
 
-    // Проверка формата с помощью регулярного выражения
-    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-    if (!datePattern.test(value)) {
-        input.setCustomValidity('Неверный формат даты');
-        return;
+    // Переключение типа клиента
+    function switchCustomerType(type) {
+        const existingCustomerSearch = document.getElementById('existingCustomerSearch');
+        const customerInfoSection = document.getElementById('customerInfoSection');
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        const customerOptionInput = document.getElementById('customer_option');
+        const hiddenCustomerOption = document.getElementById('hidden_customer_option');
+
+        // Обновляем активную кнопку
+        switchBtns.forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`.switch-btn[onclick*="${type}"]`).classList.add('active');
+
+        // Обновляем скрытые поля
+        customerOptionInput.value = type;
+        if (hiddenCustomerOption) {
+            hiddenCustomerOption.value = type;
+        }
+
+        if (type === 'existing') {
+            existingCustomerSearch.style.display = 'block';
+            customerInfoSection.style.opacity = '0.6';
+            customerInfoSection.style.pointerEvents = 'none';
+            // При переключении на существующего клиента очищаем форму
+            if (!document.getElementById('selectedCustomerId').value) {
+                clearCustomerForm();
+            }
+        } else {
+            existingCustomerSearch.style.display = 'none';
+            customerInfoSection.style.opacity = '1';
+            customerInfoSection.style.pointerEvents = 'auto';
+            clearCustomerSelection();
+            clearCustomerForm();
+        }
+
+        // Очищаем предложения
+        clearSuggestions();
     }
 
-    const selectedDate = new Date(value);
-    const today = new Date();
-    const minDate = new Date('1900-01-01');
-
-    // Проверка корректности даты
-    if (isNaN(selectedDate.getTime())) {
-        input.setCustomValidity('Некорректная дата');
-        return;
+    // Проверка типа клиента
+    function isNewCustomer() {
+        return document.getElementById('customer_option').value === 'new';
     }
 
-    // Проверка диапазона
-    if (selectedDate < minDate) {
-        input.setCustomValidity('Дата не может быть раньше 1900 года');
-    } else if (selectedDate > today) {
-        input.setCustomValidity('Дата не может быть в будущем');
-    } else {
-        input.setCustomValidity('');
+    // Загрузка данных клиента
+    function loadCustomerData(customerId) {
+        if (!customerId) return;
+
+        fetch(`/administrator/bookings/get-customer/${customerId}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Клиент не найден');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    fillCustomerForm(data.customer);
+                    document.getElementById('selectedCustomerId').value = customerId;
+                    const hiddenCustomerId = document.getElementById('hidden_customer_id');
+                    if (hiddenCustomerId) {
+                        hiddenCustomerId.value = customerId;
+                    }
+
+                    // Обновляем поле поиска
+                    const searchInput = document.getElementById('customerSearch');
+                    searchInput.value = `${data.customer.last_name} ${data.customer.first_name}`;
+
+                    hideSearchResults();
+                    showNotification(`Загружены данные клиента: ${data.customer.last_name} ${data.customer.first_name}`, 'success');
+                } else {
+                    showNotification(data.error || 'Ошибка загрузки данных клиента', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки клиента:', error);
+                showNotification('Ошибка загрузки данных клиента', 'error');
+            });
     }
 
-    // Визуальная обратная связь
-    updateFieldValidation(input);
-}
+    // Заполнение формы данными клиента
+    function fillCustomerForm(customer) {
+        const firstNameInput = document.getElementById('{{ customer_form.first_name.id_for_label }}');
+        const lastNameInput = document.getElementById('{{ customer_form.last_name.id_for_label }}');
+        const emailInput = document.getElementById('{{ customer_form.email.id_for_label }}');
+        const phoneInput = document.getElementById('{{ customer_form.phone.id_for_label }}');
+        const passportInput = document.getElementById('{{ customer_form.passport_number.id_for_label }}');
+        const birthdayInput = document.getElementById('{{ customer_form.birthday.id_for_label }}');
 
-function updateFieldValidation(field) {
-    if (field.checkValidity()) {
-        field.classList.remove('is-invalid');
-        field.classList.add('is-valid');
-    } else {
-        field.classList.remove('is-valid');
-        field.classList.add('is-invalid');
+        if (firstNameInput) firstNameInput.value = customer.first_name || '';
+        if (lastNameInput) lastNameInput.value = customer.last_name || '';
+        if (emailInput) emailInput.value = customer.email || '';
+        if (phoneInput) phoneInput.value = customer.phone || '';
+        if (passportInput) passportInput.value = customer.passport_number || '';
+
+        if (birthdayInput && customer.birthday) {
+            birthdayInput.value = customer.birthday;
+        }
+
+        // Очищаем ошибки
+        clearErrors();
     }
-}
 
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
-    const birthdayField = document.getElementById('birthday_field');
-    if (birthdayField && birthdayField.value) {
-        validateBirthday(birthdayField);
+    // Очистка формы клиента
+    function clearCustomerForm() {
+        if (isNewCustomer()) {
+            const firstNameInput = document.getElementById('{{ customer_form.first_name.id_for_label }}');
+            const lastNameInput = document.getElementById('{{ customer_form.last_name.id_for_label }}');
+            const emailInput = document.getElementById('{{ customer_form.email.id_for_label }}');
+            const phoneInput = document.getElementById('{{ customer_form.phone.id_for_label }}');
+            const passportInput = document.getElementById('{{ customer_form.passport_number.id_for_label }}');
+            const birthdayInput = document.getElementById('{{ customer_form.birthday.id_for_label }}');
+
+            if (firstNameInput) firstNameInput.value = '';
+            if (lastNameInput) lastNameInput.value = '';
+            if (emailInput) emailInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+            if (passportInput) passportInput.value = '';
+            if (birthdayInput) birthdayInput.value = '';
+
+            clearErrors();
+        }
     }
 
-});
+    // Поиск клиентов для существующих
+    function searchCustomers() {
+        const query = document.getElementById('customerSearch').value.trim();
+        if (!query) {
+            hideSearchResults();
+            return;
+        }
+
+        fetch(`/administrator/bookings/search-customers/?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                showSearchResults(data.results);
+            })
+            .catch(error => {
+                console.error('Ошибка поиска:', error);
+            });
+    }
+
+    // Поиск похожих клиентов для новых
+    function searchSimilarCustomers(query, field) {
+        if (!query || query.length < 2) return;
+
+        fetch(`/administrator/bookings/search-customers/?q=${encodeURIComponent(query)}&field=${field}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.results.length > 0) {
+                    showCustomerSuggestions(data.results, field);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка поиска:', error);
+            });
+    }
+
+    // Показать результаты поиска существующих клиентов
+    function showSearchResults(customers) {
+        const resultsContainer = document.getElementById('customerSearchResults');
+        resultsContainer.innerHTML = '';
+
+        if (customers.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="customer-result-item">
+                    <div style="text-align: center; color: #999; padding: 20px;">
+                        <i class="fas fa-search" style="font-size: 24px; margin-bottom: 10px;"></i>
+                        <div>Клиенты не найдены</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            customers.forEach(customer => {
+                const item = document.createElement('div');
+                item.className = 'customer-result-item';
+                item.innerHTML = `
+                    <div class="customer-result-name">
+                        <i class="fas fa-user-circle" style="margin-right: 8px;"></i>
+                        ${customer.last_name} ${customer.first_name}
+                    </div>
+                    <div class="customer-result-info">
+                        <span><i class="fas fa-phone"></i> ${customer.phone}</span>
+                        <span><i class="fas fa-envelope"></i> ${customer.email || '-'}</span>
+                    </div>
+                `;
+                item.onclick = () => loadCustomerData(customer.id);
+                resultsContainer.appendChild(item);
+            });
+        }
+
+        resultsContainer.style.display = 'block';
+    }
+
+    // Показать предложения для новых клиентов
+    function showCustomerSuggestions(customers, field) {
+        const suggestionsContainer = document.getElementById('customerSuggestions');
+        suggestionsContainer.innerHTML = '';
+
+        if (customers.length === 0) return;
+
+        let title = '';
+        let alertClass = '';
+
+        if (field === 'last_name') {
+            title = 'Найдены клиенты с похожей фамилией:';
+            alertClass = 'warning';
+        } else if (field === 'phone') {
+            title = 'Возможно, этот клиент уже есть в базе:';
+            alertClass = 'info';
+        } else if (field === 'email') {
+            title = 'Найден клиент с таким email:';
+            alertClass = 'info';
+        }
+
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `suggestion-alert ${alertClass}`;
+
+        let html = `<strong><i class="fas fa-info-circle"></i> ${title}</strong><br><br>`;
+
+        customers.slice(0, 3).forEach(customer => {
+            html += `
+                <div style="margin-bottom: 8px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 4px;">
+                    <strong>${customer.last_name} ${customer.first_name}</strong><br>
+                    <small>📱 ${customer.phone} | ✉ ${customer.email || '-'}</small>
+                </div>
+            `;
+        });
+
+        html += `
+            <div class="suggestion-buttons">
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        onclick="useExistingCustomer(${customers[0].id})">
+                    <i class="fas fa-check"></i> Использовать этого клиента
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="clearSuggestions()">
+                    <i class="fas fa-times"></i> Продолжить как нового
+                </button>
+            </div>
+        `;
+
+        alertDiv.innerHTML = html;
+        suggestionsContainer.appendChild(alertDiv);
+    }
+
+    // Использовать существующего клиента
+    function useExistingCustomer(customerId) {
+        switchCustomerType('existing');
+        loadCustomerData(customerId);
+        clearSuggestions();
+    }
+
+    // Очистить предложения
+    function clearSuggestions() {
+        const suggestionsContainer = document.getElementById('customerSuggestions');
+        suggestionsContainer.innerHTML = '';
+    }
+
+    // Скрыть результаты поиска
+    function hideSearchResults() {
+        const resultsContainer = document.getElementById('customerSearchResults');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+    }
+
+    // Очистить выбор клиента
+    function clearCustomerSelection() {
+        document.getElementById('selectedCustomerId').value = '';
+        const hiddenCustomerId = document.getElementById('hidden_customer_id');
+        if (hiddenCustomerId) {
+            hiddenCustomerId.value = '';
+        }
+        const searchInput = document.getElementById('customerSearch');
+        if (searchInput) searchInput.value = '';
+        hideSearchResults();
+    }
+
+    // Очистить ошибки
+    function clearErrors() {
+        const errorElements = document.querySelectorAll('.error-message');
+        errorElements.forEach(el => el.innerHTML = '');
+    }
+
+    // Показать уведомление
+    function showNotification(message, type) {
+        // Удаляем старые уведомления
+        const oldNotifications = document.querySelectorAll('.notification-toast');
+        oldNotifications.forEach(n => n.remove());
+
+        const notification = document.createElement('div');
+        notification.className = `notification-toast notification-${type}`;
+        notification.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+            ${message}
+            <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; margin-left: auto;">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Автоматическое скрытие
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    // Расчет стоимости
+    function calculatePrice() {
+        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+        const checkIn = '{{ check_in_date }}';
+        const checkOut = '{{ check_out_date }}';
+        const nightsCount = document.getElementById('nights-count');
+        const nightsDisplay = document.getElementById('nights-display');
+        const pricePerNight = document.getElementById('price-per-night');
+        const totalPrice = document.getElementById('total-price');
+
+        if (!checkIn || !checkOut || !roomSelect.value) {
+            nightsCount.textContent = '0';
+            nightsDisplay.textContent = '0';
+            pricePerNight.textContent = '0 руб.';
+            totalPrice.textContent = '0 руб.';
+            return;
+        }
+
+        const start = new Date(checkIn);
+        const end = new Date(checkOut);
+        const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+        const roomPrice = selectedOption.getAttribute('data-price') || '0';
+
+        const total = nights * parseFloat(roomPrice);
+
+        nightsCount.textContent = nights;
+        nightsDisplay.textContent = nights;
+        pricePerNight.textContent = parseFloat(roomPrice).toFixed(2) + ' руб.';
+        totalPrice.textContent = total.toFixed(2) + ' руб.';
+    }
+
+    // Выбор номера
+    function selectRoom(roomId) {
+        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+        roomSelect.value = roomId;
+
+        // Снимаем выделение со всех карточек
+        document.querySelectorAll('.room-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+
+        // Выделяем выбранную карточку
+        const selectedCard = document.querySelector(`[data-room-id="${roomId}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+
+        // Пересчитываем стоимость
+        calculatePrice();
+
+        // Прокручиваем к расчету
+        const priceSummary = document.querySelector('.price-summary');
+        if (priceSummary) {
+            priceSummary.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+    }
+
+    // Обновить скрытые поля перед отправкой
+    function updateHiddenFields() {
+        const customerOption = document.getElementById('customer_option').value;
+        const hiddenCustomerOption = document.getElementById('hidden_customer_option');
+        if (hiddenCustomerOption) {
+            hiddenCustomerOption.value = customerOption;
+        }
+
+        const customerId = document.getElementById('selectedCustomerId').value;
+        const hiddenCustomerId = document.getElementById('hidden_customer_id');
+        if (hiddenCustomerId) {
+            hiddenCustomerId.value = customerId;
+        }
+
+        // Добавляем скрытое поле check_in_date и check_out_date
+        const checkInDateInput = document.getElementById('id_check_in_date');
+        const checkOutDateInput = document.getElementById('id_check_out_date');
+        if (checkInDateInput && checkOutDateInput) {
+            // Убедимся, что они есть в форме
+            if (!document.querySelector('input[name="check_in_date"]')) {
+                const hiddenCheckIn = document.createElement('input');
+                hiddenCheckIn.type = 'hidden';
+                hiddenCheckIn.name = 'check_in_date';
+                hiddenCheckIn.value = checkInDateInput.value;
+                document.getElementById('bookingForm').appendChild(hiddenCheckIn);
+            }
+            if (!document.querySelector('input[name="check_out_date"]')) {
+                const hiddenCheckOut = document.createElement('input');
+                hiddenCheckOut.type = 'hidden';
+                hiddenCheckOut.name = 'check_out_date';
+                hiddenCheckOut.value = checkOutDateInput.value;
+                document.getElementById('bookingForm').appendChild(hiddenCheckOut);
+            }
+        }
+    }
+
+    // Обновить тип клиента
+    function updateCustomerType() {
+        const customerOption = '{% if new_customer %}new{% else %}existing{% endif %}';
+        switchCustomerType(customerOption);
+    }
 </script>
+
+<style>
+    /* Дополнительные стили для уведомлений */
+    .notification-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: white;
+        border-radius: 8px;
+        padding: 15px 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+    }
+
+    .notification-success {
+        border-left: 4px solid #4CAF50;
+        background: #f8fff8;
+    }
+
+    .notification-error {
+        border-left: 4px solid #dc3545;
+        background: #fff8f8;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    /* Стили для валидации полей */
+    .is-valid {
+        border-color: #28a745 !important;
+    }
+
+    .is-invalid {
+        border-color: #dc3545 !important;
+    }
+</style>
 {% endblock %}

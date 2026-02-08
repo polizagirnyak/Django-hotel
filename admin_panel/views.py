@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 
 from service.models import ServiceBooking
@@ -237,11 +238,22 @@ def booking_create_with_customer(request):
     customer_form = CustomerForm(request.POST or None)
     booking_form = BookingForm(request.POST or None)
     available_rooms = Room.objects.none()
+    #Флаг для нового клиента
+    new_customer = True
 
     # Получаем параметры из GET запроса
     check_in_date = request.GET.get('check_in')
     check_out_date = request.GET.get('check_out')
     room_id = request.GET.get('room_id')
+    customer_id = request.GET.get('customer_id')
+
+    if customer_id:
+        try:
+            customer = Customer.objects.get(id=customer_id)
+            customer_form = CustomerForm(instance=customer)
+            new_customer = False
+        except Customer.DoesNotExist:
+            messages.error(request, 'Клиент не найден')
 
     if check_in_date and check_out_date:
         available_rooms = get_available_rooms(check_in_date, check_out_date)
@@ -252,14 +264,31 @@ def booking_create_with_customer(request):
             booking_form = BookingForm(available_rooms=available_rooms, initial={'room': room_id})
 
     if request.method == 'POST':
-        customer_form = CustomerForm(request.POST)
+        customer_id_from_form = request.POST.get('customer_id')
+        if customer_id_from_form and customer_id_from_form != 'new':
+            try:
+                customer = Customer.objects.get(id=customer_id_from_form)
+                customer_form = CustomerForm(instance=customer)
+                new_customer = False
+            except Customer.DoesNotExist:
+                messages.error(request, 'Выбранный клиент не найден')
+                customer_form = CustomerForm(request, 'POST')
+                new_customer = True
+        else:
+            customer_form = CustomerForm(request, 'POST')
+            new_customer = True
         booking_form = BookingForm(request.POST, available_rooms=available_rooms)
 
-        if customer_form.is_valid() and booking_form.is_valid():
+        if booking_form.is_valid() and (not new_customer or (new_customer and customer_form.is_valid())):
             try:
                 with transaction.atomic():
                     # Сохраняем клиента
-                    customer = customer_form.save()
+                    if new_customer:
+                        customer = customer_form.save()
+                    else:
+                        customer_form = CustomerForm(request, 'POST', instance=customer)
+                        if customer_form.has_changed():
+                            customer = customer_form.save()
 
                     # Сохраняем бронирование
                     booking = booking_form.save(commit=False)
@@ -284,7 +313,7 @@ def booking_create_with_customer(request):
 
             except Exception as e:
                 messages.error(request, f'Ошибка при создании бронирования: {str(e)}')
-
+    customers = Customer.objects.all()[:50]
     context = {
         'customer_form': customer_form,
         'booking_form': booking_form,
@@ -292,8 +321,54 @@ def booking_create_with_customer(request):
         'check_in_date': check_in_date,
         'check_out_date': check_out_date,
         'today': date.today(),
+        'customers': customers,
+        'new_customer': new_customer
     }
     return render(request, 'admin_panel/booking_create_with_customer.html', context)
+
+
+def search_customers(request):
+    #Поиск клиентов для автозаполнения
+    query = request.GET.get('q', '')
+    if not query:
+        return JsonResponse({'results':[]})
+    customers = Customer.objects.filter(
+        Q(last_name__icontains=query) |
+        Q(phone__icontains=query) |
+        Q(email__icontains=query)
+    )[:10]
+
+    results = []
+    for customer in customers:
+        results.append({
+            'id': customer.id,
+            'text': f'{customer.last_name} {customer.first_name} - {customer.phone}',
+            'first_name': customer.first_name,
+            'last_name': customer.last_name,
+            'email': customer.email,
+            'phone': customer.phone,
+            'passport_number': customer.passport_number,
+            'birthday': customer.birthday.strftime('%Y-%m-%d') if customer.birthday else ''
+        })
+    return JsonResponse({'results':results})
+
+def get_customer_detail(request, customer_id):
+    try:
+        customer = Customer.objects.get(id=customer_id)
+        return JsonResponse({
+            'success': True,
+            'customer': {
+                'id': customer.id,
+                'first_name': customer.first_name,
+                'last_name': customer.last_name,
+                'email': customer.email,
+                'phone': customer.phone,
+                'passport_number': customer.passport_number,
+                'birthday': customer.birthday.strftime('%Y-%m-%d') if customer.birthday else ''
+            }
+        })
+    except Customer.DoesNotExist:
+        return JsonResponse({'success':False, 'error':'Клиент не найден'}, status=404)
 
 
 def get_available_rooms(check_in_date, check_out_date):
@@ -613,3 +688,23 @@ def customer_edit(request, pk):
     }
     return render(request, template_name='admin_panel/customer_edit.html', context=context)
 
+def booking_status_update(request, pk, status):
+    booking = get_object_or_404(Booking, pk=pk)
+    all_status = booking.status
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                booking.status = status
+                if status == 'checked_in':
+                    booking.room.status = 'occupied'
+                    booking.room.save()
+                elif status in ['checked_out', 'cancelled']:
+                    booking.room.status = 'available'
+                elif status in ['confirmed', 'awaiting_payment']:
+                    pass
+                booking.save()
+                messages.success(request, f'Статус бронирования #{booking.id} изменен)'
+                                          f'Статус комнаты {booking.room.room_number} обновлен')
+        except Exception as e:
+            messages.error(request, f'Ошибка при обновлении статусы: {str(e)}')
+    return redirect('booking_list')

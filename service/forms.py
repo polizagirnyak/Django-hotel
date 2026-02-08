@@ -106,7 +106,8 @@ class ServiceBookingForm(forms.ModelForm):
         #Если выбрана услуга, устанавливаем мин дата,время
         service = None
         if self.initial.get('service'):
-            service = self.initial.get('service')
+            service_id = self.initial.get('service')
+            service = Service.objects.get(pk=service_id)
         elif self.data.get('service'):
             try:
                 service = Service.objects.get(pk=self.data.get('service'))

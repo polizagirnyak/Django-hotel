@@ -3,8 +3,8 @@ from .views import (room_edit, room_type_edit, room_list,
                     room_create, room_delete, rooms_dashboard,
                     room_type_create, room_type_delete, room_type_list,
                     booking_create_with_customer, booking_list, booking_edit,
-                    booking_dashboard, booking_delete, index)
-from .views import (customer_edit, customer_list, customer_detail)
+                    booking_dashboard, booking_delete, index, search_customers, get_customer_detail)
+from .views import (customer_edit, customer_list, customer_detail, booking_status_update)
 from service.views import customer_service_bookings, customer_service_booking_add
 
 urlpatterns = [
@@ -22,6 +22,7 @@ urlpatterns = [
     path('rooms-dashboard/', rooms_dashboard, name='rooms_dashboard'),
 
     path('bookings/create-with-customer/',booking_create_with_customer, name='booking_create_with_customer'),
+    path('bookings/status-update/<int:pk>/<str:status>/',booking_status_update ,name='booking_status_update'),
     path('bookings/<int:pk>/edit/', booking_edit, name='booking_edit'),
     path('booking/<int:pk>/delete/', booking_delete, name='booking_delete'),
     path('bookings/', booking_list, name='booking_list'),
@@ -32,5 +33,9 @@ urlpatterns = [
     path('customers/<int:pk>/edit/', customer_edit, name='customer_edit'),
     path('customers/<int:pk>/', customer_detail, name='customer_detail'),
     path('customer/<int:customer_id>/service-bookings/', customer_service_bookings, name='customer_service_bookings'),
-    path('customer/<int:customer_id>/service-bookings/add/', customer_service_booking_add, name='customer_service_booking_add')
+    path('customer/<int:customer_id>/service-bookings/add/', customer_service_booking_add, name='customer_service_booking_add'),
+
+
+    path('bookings/search-customers/', search_customers, name='search_customers'),
+    path('customers/get-customer/<int:customer_id>/', get_customer_detail, name='get_customer_detail')
 ]
