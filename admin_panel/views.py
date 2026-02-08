@@ -235,11 +235,7 @@ def rooms_dashboard(request):
 
 
 def booking_create_with_customer(request):
-    customer_form = CustomerForm(request.POST or None)
-    booking_form = BookingForm(request.POST or None)
     available_rooms = Room.objects.none()
-    #Флаг для нового клиента
-    new_customer = True
 
     # Получаем параметры из GET запроса
     check_in_date = request.GET.get('check_in')
@@ -247,6 +243,12 @@ def booking_create_with_customer(request):
     room_id = request.GET.get('room_id')
     customer_id = request.GET.get('customer_id')
 
+    # Инициализируем формы с начальными данными
+    customer_form = CustomerForm()
+    booking_form = BookingForm()
+    new_customer = True
+
+    # Если передан ID существующего клиента через GET
     if customer_id:
         try:
             customer = Customer.objects.get(id=customer_id)
@@ -257,63 +259,123 @@ def booking_create_with_customer(request):
 
     if check_in_date and check_out_date:
         available_rooms = get_available_rooms(check_in_date, check_out_date)
-        booking_form = BookingForm(available_rooms=available_rooms)
+        booking_form = BookingForm(available_rooms=available_rooms, initial={
+            'check_in_date': check_in_date,
+            'check_out_date': check_out_date
+        })
 
         # Если передан room_id, выбираем его по умолчанию
         if room_id and available_rooms.filter(id=room_id).exists():
-            booking_form = BookingForm(available_rooms=available_rooms, initial={'room': room_id})
+            booking_form = BookingForm(available_rooms=available_rooms, initial={
+                'room': room_id,
+                'check_in_date': check_in_date,
+                'check_out_date': check_out_date
+            })
 
     if request.method == 'POST':
+        print(f"DEBUG: POST data = {request.POST}")
+
+        # Определяем тип клиента
+        customer_option = request.POST.get('customer_option', 'new')
         customer_id_from_form = request.POST.get('customer_id')
-        if customer_id_from_form and customer_id_from_form != 'new':
+
+        # Для существующего клиента
+        if customer_option == 'existing' and customer_id_from_form:
             try:
+                # Получаем клиента из БД
                 customer = Customer.objects.get(id=customer_id_from_form)
-                customer_form = CustomerForm(instance=customer)
                 new_customer = False
+
+                # Создаем booking_form с данными из POST
+                mutable_post = request.POST.copy()
+
+                # Добавляем даты, если их нет
+                if check_in_date and 'check_in_date' not in mutable_post:
+                    mutable_post['check_in_date'] = check_in_date
+                if check_out_date and 'check_out_date' not in mutable_post:
+                    mutable_post['check_out_date'] = check_out_date
+
+                # Создаем booking_form
+                booking_form = BookingForm(mutable_post, available_rooms=available_rooms)
+
+                # Валидируем только booking_form
+                if booking_form.is_valid():
+                    try:
+                        with transaction.atomic():
+                            # Сохраняем бронирование
+                            booking = booking_form.save(commit=False)
+                            booking.customer = customer
+
+                            # Расчет общей стоимости
+                            nights = (booking.check_out_date - booking.check_in_date).days
+                            total_price = nights * booking.room.room_type.price_per_night
+                            booking.total_price = total_price
+
+                            booking.save()
+
+                            # Обновляем статус комнаты
+                            booking.room.status = 'occupied'
+                            booking.room.save()
+
+                            messages.success(
+                                request,
+                                f'Бронирование успешно создано! Стоимость: {total_price} руб.'
+                            )
+                            return redirect('booking_list')
+
+                    except Exception as e:
+                        messages.error(request, f'Ошибка при создании бронирования: {str(e)}')
+                        print(f"ERROR: {str(e)}")
+                else:
+                    print(f"DEBUG: booking_form errors = {booking_form.errors}")
+                    # Пересоздаем customer_form с данными клиента для отображения
+                    customer_form = CustomerForm(instance=customer)
+
             except Customer.DoesNotExist:
                 messages.error(request, 'Выбранный клиент не найден')
-                customer_form = CustomerForm(request, 'POST')
+                customer_form = CustomerForm(request.POST)
                 new_customer = True
+
         else:
-            customer_form = CustomerForm(request, 'POST')
+            # Для нового клиента
             new_customer = True
-        booking_form = BookingForm(request.POST, available_rooms=available_rooms)
+            customer_form = CustomerForm(request.POST)
+            booking_form = BookingForm(request.POST, available_rooms=available_rooms)
 
-        if booking_form.is_valid() and (not new_customer or (new_customer and customer_form.is_valid())):
-            try:
-                with transaction.atomic():
-                    # Сохраняем клиента
-                    if new_customer:
+            # Проверяем обе формы
+            if customer_form.is_valid() and booking_form.is_valid():
+                try:
+                    with transaction.atomic():
+                        # Сохраняем клиента
                         customer = customer_form.save()
-                    else:
-                        customer_form = CustomerForm(request, 'POST', instance=customer)
-                        if customer_form.has_changed():
-                            customer = customer_form.save()
 
-                    # Сохраняем бронирование
-                    booking = booking_form.save(commit=False)
-                    booking.customer = customer
+                        # Сохраняем бронирование
+                        booking = booking_form.save(commit=False)
+                        booking.customer = customer
 
-                    # Расчет общей стоимости
-                    nights = (booking.check_out_date - booking.check_in_date).days
-                    total_price = nights * booking.room.room_type.price_per_night
-                    booking.total_price = total_price
+                        # Расчет общей стоимости
+                        nights = (booking.check_out_date - booking.check_in_date).days
+                        total_price = nights * booking.room.room_type.price_per_night
+                        booking.total_price = total_price
 
-                    booking.save()
+                        booking.save()
 
-                    # Обновляем статус комнаты
-                    booking.room.status = 'occupied'
-                    booking.room.save()
+                        # Обновляем статус комнаты
+                        booking.room.status = 'occupied'
+                        booking.room.save()
 
-                    messages.success(
-                        request,
-                        f'Бронирование успешно создано! Стоимость: {total_price} руб.'
-                    )
-                    return redirect('booking_list')
+                        messages.success(
+                            request,
+                            f'Бронирование успешно создано! Стоимость: {total_price} руб.'
+                        )
+                        return redirect('booking_list')
 
-            except Exception as e:
-                messages.error(request, f'Ошибка при создании бронирования: {str(e)}')
+                except Exception as e:
+                    messages.error(request, f'Ошибка при создании бронирования: {str(e)}')
+
+    # Получаем список клиентов для автозаполнения
     customers = Customer.objects.all()[:50]
+
     context = {
         'customer_form': customer_form,
         'booking_form': booking_form,
@@ -322,10 +384,9 @@ def booking_create_with_customer(request):
         'check_out_date': check_out_date,
         'today': date.today(),
         'customers': customers,
-        'new_customer': new_customer
+        'new_customer': new_customer,
     }
     return render(request, 'admin_panel/booking_create_with_customer.html', context)
-
 
 def search_customers(request):
     #Поиск клиентов для автозаполнения
@@ -352,7 +413,7 @@ def search_customers(request):
         })
     return JsonResponse({'results':results})
 
-def get_customer_detail(request, customer_id):
+def get_customer_details(request, customer_id):
     try:
         customer = Customer.objects.get(id=customer_id)
         return JsonResponse({
