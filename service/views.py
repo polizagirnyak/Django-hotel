@@ -165,8 +165,10 @@ def service_delete(request, pk):
     service = get_object_or_404(Service, pk=pk)
     if request.method == 'POST':
         #Проверяем, есть ли записи на эту услугу
-        if service.booking.exists():
-            messages.error(request, 'Нельзя удалить услугу, на которую есть записи')
+        if service.bookings.exists():
+            messages.error(request, 'При удалении услуги, записи на эту услугу останутся активными')
+            service.delete()
+            messages.success(request,'Услуга успешно удалена, с сохранением предыдущих записей')
         else:
             service.delete()
             messages.success(request,'Услуга успешно удалена')
@@ -227,51 +229,81 @@ def service_booking_add(request):
             try:
                 booking = form.save(commit=False)
                 booking.created_by = request.user
-
-                #Дополнительная проверка минимального времени
-                service = booking.service
-                if service.min_booking_hours > 0:
-                    booking_datetime =timezone.make_aware(
-                        datetime.combine(booking.booking_date, booking.start_time)
-                    )
-                    min_booking_datetime = timezone.now() + timezone.timedelta(
-                        hours = service.min_booking_hours
-                    )
-                    if booking_datetime < min_booking_datetime:
-                        form.add_error(None,
-                                       f'Эту услугу можно бронировать не ранее чем за {service.min_booking_hours}'
-                                       f'часов. Выберите время после {min_booking_datetime.strftime('%d.%m.%Y %H:%M')}')
-                        return render(request, 'service/booking_add.html', context={'form':form, 'title':'Добавить запись на услугу'})
-
                 booking.save()
-
-                messages.success(request,'Запись на услугу успешно создана')
+                messages.success(request, 'Запись на услугу успешно создана')
 
                 #Если создан новый клиент
                 if form.cleaned_data.get('new_customer'):
                     messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
-                return redirect('service_booking_list')
+                #Проверяем нажата ли кнопка сохранить/добавить еще
+                if 'save_and_new' in request.POST:
+                    return redirect('service_booking_add')
+                else:
+                    return redirect('service_booking_list')
             except ValidationError as e:
-                form.add_error(None, str(e))
-
+                form.add_error(None, e)
     else:
         form = ServiceBookingForm()
-        #Если передан id клиента
         customer_id = request.GET.get('customer_id')
         if customer_id:
             try:
-                customer = Customer.objects.get(pk = customer_id)
+                customer = Customer.objects.get(pk=customer_id)
                 form.fields['customer'].initial = customer
             except Customer.DoesNotExist:
                 pass
-        #Если передан id услуги
+
         service_id = request.GET.get('service_id')
         if service_id:
             try:
-                service = Service.objects.get(pk = service_id)
+                service = Service.objects.get(pk=service_id)
                 form.fields['service'].initial = service
             except Service.DoesNotExist:
                 pass
+
+    #             #Дополнительная проверка минимального времени
+    #             service = booking.service
+    #             if service.min_booking_hours > 0:
+    #                 booking_datetime =timezone.make_aware(
+    #                     datetime.combine(booking.booking_date, booking.start_time)
+    #                 )
+    #                 min_booking_datetime = timezone.now() + timezone.timedelta(
+    #                     hours = service.min_booking_hours
+    #                 )
+    #                 if booking_datetime < min_booking_datetime:
+    #                     form.add_error(None,
+    #                                    f'Эту услугу можно бронировать не ранее чем за {service.min_booking_hours}'
+    #                                    f'часов. Выберите время после {min_booking_datetime.strftime('%d.%m.%Y %H:%M')}')
+    #                     return render(request, 'service/booking_add.html', context={'form':form, 'title':'Добавить запись на услугу'})
+    #
+    #             booking.save()
+    #
+    #             messages.success(request,'Запись на услугу успешно создана')
+    #
+    #             #Если создан новый клиент
+    #             if form.cleaned_data.get('new_customer'):
+    #                 messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
+    #             return redirect('service_booking_list')
+    #         except ValidationError as e:
+    #             form.add_error(None, str(e))
+    #
+    # else:
+    #     form = ServiceBookingForm()
+    #     #Если передан id клиента
+    #     customer_id = request.GET.get('customer_id')
+    #     if customer_id:
+    #         try:
+    #             customer = Customer.objects.get(pk = customer_id)
+    #             form.fields['customer'].initial = customer
+    #         except Customer.DoesNotExist:
+    #             pass
+    #     #Если передан id услуги
+    #     service_id = request.GET.get('service_id')
+    #     if service_id:
+    #         try:
+    #             service = Service.objects.get(pk = service_id)
+    #             form.fields['service'].initial = service
+    #         except Service.DoesNotExist:
+    #             pass
     #Подготавливаем данные об услугах JS
     services_data = {}
     for service in Service.objects.all():
@@ -329,7 +361,7 @@ def service_booking_delete(request, pk):
         booking.delete()
         messages.success(request, 'Запись успешно удалена')
         return redirect('service_booking_list')
-    return render(request, template_name='service/service_booking_confirm_delete', context={'booking':booking})
+    return render(request, template_name='service/service_booking_confirm_delete.html', context={'booking':booking})
 
 
 #Изменение статуса бронирования

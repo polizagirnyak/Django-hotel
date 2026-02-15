@@ -1,6 +1,7 @@
 import re
 
 from django import forms
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from .models import Service, ServiceCategory, ServiceBooking
@@ -100,6 +101,9 @@ class ServiceBookingForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        #Делаем поле Customer необязательным
+        self.fields['customer'].required = False
+
         #Ограничиваем выбор даты только будущими датами
         self.fields['booking_date'].widget.attrs['min'] = date.today().isoformat()
 
@@ -135,56 +139,131 @@ class ServiceBookingForm(forms.ModelForm):
                 initial_hour = (now.hour+1) % 24
             self.fields['start_time'].initial=time(initial_hour, 0)
 
-
-
     def clean(self):
         cleaned_data = super().clean()
+
+        new_customer = cleaned_data.get('new_customer')
         service = cleaned_data.get('service')
         booking_date = cleaned_data.get('booking_date')
         start_time = cleaned_data.get('start_time')
         participants = cleaned_data.get('participants')
-        new_customer = cleaned_data.get('new_customer')
+        customer = cleaned_data.get('customer')
 
-        #Проверяем данные нового клиента
+        # Проверка: должен быть выбран существующий клиент ИЛИ создан новый
+        if not new_customer and not customer:
+            self.add_error('customer', 'Необходимо выбрать клиента или создать нового')
+            self.add_error('new_customer', 'Выберите существующего клиента или создайте нового')
+        elif new_customer and customer:
+            # Нельзя одновременно выбрать и создать клиента
+            self.add_error('new_customer', 'Нельзя одновременно выбрать существующего клиента и создать нового')
+            self.add_error('customer', 'Либо выберите существующего клиента, либо создайте нового')
+
+        # Проверяем данные нового клиента
         if new_customer:
             first_name = cleaned_data.get('new_first_name')
             last_name = cleaned_data.get('new_last_name')
             phone = cleaned_data.get('new_phone')
 
             if not first_name:
-                self.add_error('new_first_name','Обязательное поле')
+                self.add_error('new_first_name', 'Обязательное поле')
             if not last_name:
-                self.add_error('new_last_name','Обязательное поле')
+                self.add_error('new_last_name', 'Обязательное поле')
             if not phone:
-                self.add_error('new_phone','Обязательное поле')
-            elif Customer.objects.filter(phone=phone).exists():
-                self.add_error('new_phone','Клиент с таким номером уже существует')
+                self.add_error('new_phone', 'Обязательное поле')
+            else:
+                # Очищаем номер для проверки уникальности
+                clean_phone = re.sub(r'[^\d+]', '', phone)
 
+                # Нормализуем формат
+                if clean_phone.startswith('7') and not clean_phone.startswith('+7'):
+                    clean_phone = '+7' + clean_phone[1:]
+                elif clean_phone.startswith('8'):
+                    clean_phone = '+7' + clean_phone[1:]
+                elif not clean_phone.startswith('+'):
+                    clean_phone = '+7' + clean_phone
 
-        if service and booking_date and start_time and participants:
-            #Проверяем, что дата в будущем
-            if booking_date < date.today():
-                raise forms.ValidationError('Дата записи не может быть в прошлом')
-            #Проверяем кол-во участников
-            if participants > service.max_capacity:
-                raise forms.ValidationError(f'Максимальное количество участников для этой услуги: {service.max_capacity}')
-            #Проверяем доступность услуги(кроме случаев редактирования существующих записей)
-            if not self.instance.pk or (self.instance and (self.instance.booking_date != booking_date or self.instance.start_time != start_time)):
-                #Расчитываем время окончания
-                start_datetime = datetime.combine(booking_date, start_time)
-                end_datetime = start_datetime + timezone.timedelta(minutes = service.duration)
-                end_time = end_datetime.time()
-                #Проверяем пересечения
-                overlapping = ServiceBooking.objects.filter(
-                    service = service,
-                    booking_date = booking_date,
-                    status__in = ['confirmed', 'pending', 'in_progress'],
-                ).exclude(pk = self.instance.pk).filter(
-                    Q(start_time__lt = end_time, end_time__gt = start_time)
+                if len(clean_phone) == 12 and re.match(r'^\+7\d{10}$', clean_phone):
+                    cleaned_data['new_phone'] = clean_phone
+
+                    if Customer.objects.filter(phone=clean_phone).exists():
+                        self.add_error('new_phone', 'Клиент с таким номером телефона уже существует')
+                else:
+                    self.add_error('new_phone', 'Введите корректный номер телефона в формате +7XXXXXXXXXX')
+
+        # Валидация услуги и времени
+        if service and booking_date and start_time:
+            current_datetime = timezone.now()
+            booking_datetime = timezone.make_aware(
+                datetime.combine(booking_date, start_time)
+            )
+
+            # Проверка минимального времени бронирования
+            if service.min_booking_hours > 0:
+                min_booking_datetime = current_datetime + timezone.timedelta(
+                    hours=service.min_booking_hours
                 )
+
+                if booking_datetime < min_booking_datetime:
+                    min_time_str = min_booking_datetime.strftime('%d.%m.%Y %H:%M')
+                    self.add_error(None,
+                                   f"Эту услугу можно бронировать не ранее чем за {service.min_booking_hours} "
+                                   f"часов до времени посещения. Можно выбрать время с: {min_time_str}"
+                                   )
+
+            # Проверка, что время в будущем
+            if booking_datetime <= current_datetime:
+                self.add_error(None, "Дата и время записи должны быть в будущем")
+
+            # Проверка количества участников
+            if participants and service:
+                if participants > service.max_capacity:
+                    self.add_error('participants',
+                                   f"Максимальное количество участников для этой услуги: {service.max_capacity}"
+                                   )
+                elif participants < 1:
+                    self.add_error('participants', "Количество участников должно быть не менее 1")
+
+            # Проверка доступности времени
+            if service and booking_date and start_time and participants:
+                start_datetime = datetime.combine(booking_date, start_time)
+                end_datetime = start_datetime + timezone.timedelta(minutes=service.duration)
+                end_time = end_datetime.time()
+
+                overlapping = ServiceBooking.objects.filter(
+                    service=service,
+                    booking_date=booking_date,
+                    status__in=['confirmed', 'pending', 'in_progress'],
+                ).exclude(pk=self.instance.pk).filter(
+                    Q(start_time__lt=end_time, end_time__gt=start_time)
+                )
+
                 if overlapping.exists():
-                    raise forms.ValidationError('В это время улуга уже забронирована, выберите другое время')
+                    self.add_error(None,
+                                   "В это время услуга уже забронирована. Выберите другое время."
+                                   )
+
         return cleaned_data
+
+    def save(self, commit = True):
+        instance = super().save(commit=False)
+        if self.cleaned_data.get('new_customer'):
+            customer = Customer.objects.create(
+                first_name = self.cleaned_data['new_first_name'],
+                last_name = self.cleaned_data['new_last_name'],
+                phone = self.cleaned_data['new_phone'],
+                email = self.cleaned_data.get('new_email', ''),
+                passport_number = self.cleaned_data.get('new_passport_number', ''),
+                birthday = self.cleaned_data.get('new_birthday')
+            )
+            instance.customer = customer
+        elif self.cleaned_data.get('customer'):
+            instance.customer = self.cleaned_data.get('customer')
+        else:
+            raise ValidationError('Не указан клиент для бронирования')
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 class QuickCustomerForm(forms.ModelForm):
     class Meta:
