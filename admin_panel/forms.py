@@ -78,10 +78,11 @@ class CustomerForm(forms.ModelForm):
             'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+7 (XXX) XXX-XX-XX'}),
             'passport_number': forms.TextInput(
                 attrs={'class': 'form-control', 'placeholder': 'Серия и номер паспорта'}),
-            'birthday': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'birthday': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
         }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['birthday'].input_formats = ['%Y-%m-%d']
         #Устанавливаем атрибуты для поля Даты
         today = date.today()
         min_date = date(today.year - 120, 1,1)
@@ -106,8 +107,8 @@ class BookingForm(forms.ModelForm):
         model = Booking
         fields = ['room', 'check_in_date', 'check_out_date', 'special_requests']
         widgets = {
-            'check_in_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'check_out_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'check_in_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
+            'check_out_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'special_requests': forms.Textarea(
                 attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Особые пожелания...'}),
             'room': forms.Select(attrs={'class': 'form-control'}),
@@ -116,6 +117,8 @@ class BookingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         available_rooms = kwargs.pop('available_rooms', None)
         super().__init__(*args, **kwargs)
+        self.fields['check_in_date'].input_formats = ['%Y-%m-%d']
+        self.fields['check_out_date'].input_formats = ['%Y-%m-%d']
         if available_rooms:
             self.fields['room'].queryset = available_rooms
 

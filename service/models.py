@@ -177,10 +177,10 @@ class ServiceBooking(models.Model):
             booking_datetime = timezone.make_aware(
                 datetime.combine(self.booking_date, self.start_time)
             )
-            curren_datetime = timezone.now()
+            current_datetime = timezone.now()
             #Проверяем мин время бронирования
-            if self.service.min_booking_hours > 0:
-                min_booking_datetime = curren_datetime + timezone.timedelta(
+            if not self.pk and self.service.min_booking_hours > 0:
+                min_booking_datetime = current_datetime + timezone.timedelta(
                     hours=self.service.min_booking_hours
                 )
                 if booking_datetime < min_booking_datetime:
@@ -190,7 +190,7 @@ class ServiceBooking(models.Model):
                         f'{min_booking_datetime.strftime('%d.%m.%Y %H:%M')}'
                     )
             #Проверяем что время в будущем
-            if booking_datetime <= curren_datetime:
+            if not self.pk and booking_datetime <= current_datetime:
                 raise ValidationError('Дата и время записи должны быть в будущем')
 
     def save(self, *args, **kwargs):

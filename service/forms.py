@@ -301,6 +301,42 @@ class QuickCustomerForm(forms.ModelForm):
         return email
 
 
+class ServiceBookingEditForm(forms.ModelForm):
+    class Meta:
+        model = ServiceBooking
+        fields = [ 'service', 'booking_date', 'start_time',
+                  'participants', 'special_requests', 'notes', 'status']
+        widgets = {
+            'special_requests': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'booking_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'service': forms.Select(attrs={'class': 'form-select'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'participants': forms.NumberInput(attrs={'class': 'form-control', 'min': 1})
+        }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.booking = kwargs.get('instance')
+        #Не переопределяем начальные значения даты и времени, если они уже есть
+        if self.booking and self.booking.pk:
+            self.fields['booking_date'].initial = self.booking.booking_date
+            self.fields['start_time'].initial = self.booking.start_time
+
+            #Устанавливаем минимальную дату
+            if self.booking.service and self.booking.service.min_booking_hours > 0:
+                service = self.booking.service
+                min_datetime = timezone.now() + timezone.timedelta(hours = service.min_booking_hours)
+                min_date = min_datetime.date()
+                self.fields['booking_date'].widget.attrs['min'] = min_date.isoformat()
+
+                #Добавляем подсказку мин времени бронирования
+                self.fields['booking_date'].help_text = f'Минимальная дата: {min_date.strftime('%d.%m.%Y')}'
+                self.fields['start_time'].help_text = f'Для этой услуги бронирование возможно за {service.min_booking_hours} ч.'
+            else:
+                today = date.today()
+                self.fields['booking_date'].widget.attrs['min'] = today.isoformat()
+
 
 
 

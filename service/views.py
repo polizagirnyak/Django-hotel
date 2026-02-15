@@ -10,7 +10,7 @@ from django.db.models import Q
 from datetime import datetime, date, timedelta
 from .models import Service, ServiceCategory, ServiceBooking
 from admin_panel.models import Customer, Booking
-from .forms import ServiceForm, ServiceBookingForm, ServiceCategoryForm
+from .forms import ServiceForm, ServiceBookingForm, ServiceCategoryForm, ServiceBookingEditForm
 from django.core.paginator import Paginator
 
 
@@ -328,13 +328,24 @@ def service_booking_add(request):
 def service_booking_edit(request, pk):
     booking = get_object_or_404(ServiceBooking, pk=pk)
     if request.method == 'POST':
-        form = ServiceBookingForm(request.POST, instance=booking)
+        form = ServiceBookingEditForm(request.POST, instance=booking)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Запись успешно сохранена')
-            return redirect('service_booking_list')
+            try:
+                booking = form.save(commit=False)
+                booking.created_by = request.user
+
+                start_datetime = datetime.combine(booking.booking_date, booking.start_time)
+                end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
+                booking.end_time = end_datetime.time()
+
+                booking.save()
+                messages.success(request, 'Запись успешно обновлена')
+                return redirect('service_booking_list')
+            except ValidationError as e:
+                form.add_error(None, e)
+
     else:
-        form = ServiceBookingForm(instance=booking)
+        form = ServiceBookingEditForm(instance=booking)
     #Подготавливаем данные об услугах JS
     services_data = {}
     for service in Service.objects.all():
@@ -346,12 +357,26 @@ def service_booking_edit(request, pk):
             'max_capacity': service.max_capacity,
             'min_booking_hours': service.min_booking_hours
         }
+    initial_service_id = str(booking.service.id) if booking.service else None
+    initial_participants = booking.participants
     context = {
         'form': form,
-        'title': 'Редактировать запись',
-        'services_json': json.dumps(services_data)
+        'title': f'Редактирование записи #{booking.id}',
+        'services_json': json.dumps(services_data),
+        'booking': booking,
+        'initial_service_id': initial_service_id,
+        'initial_participants': initial_participants,
+        'initial_date': booking.booking_date.isoformat() if booking.booking_date else '',
+        'initial_time': booking.start_time.strftime('%H:%M') if booking.start_time else ''
     }
-    return render(request, template_name='service/service_booking_add.html', context=context)
+    return render(request, template_name='service/service_booking_edit.html', context=context)
+
+
+@login_required
+@staff_required
+def service_booking_detail(request, pk):
+    pass
+
 
 @login_required
 @staff_required
