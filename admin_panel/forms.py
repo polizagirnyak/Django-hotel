@@ -128,11 +128,15 @@ class BookingEditForm(forms.ModelForm):
         model = Booking
         fields = ['room', 'check_in_date', 'check_out_date', 'status', 'special_requests', 'total_price']
         widgets = {
-            'check_in_date': forms.DateInput(attrs={
+            'check_in_date': forms.DateInput(
+                format = '%Y-%m-%d',
+                attrs={
                 'class': 'form-control',
                 'type': 'date'
             }),
-            'check_out_date': forms.DateInput(attrs={
+            'check_out_date': forms.DateInput(
+                format='%Y-%m-%d',
+                attrs={
                 'class': 'form-control',
                 'type': 'date'
             }),

@@ -36,15 +36,14 @@
     <!-- Фильтры и поиск -->
     <div class="filters-card">
         <form method="get" class="filters-form">
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+
             <div class="filters-grid">
-                <!-- Поиск -->
                 <div class="filter-group">
                     <label for="search" class="filter-label">Поиск</label>
                     <input type="text" name="search" id="search" class="form-control"
                            value="{{ search_query }}" placeholder="Имя, фамилия, телефон или номер комнаты...">
                 </div>
-
-                <!-- Фильтр по статусу -->
                 <div class="filter-group">
                     <label for="status" class="filter-label">Статус</label>
                     <select name="status" id="status" class="form-control">
@@ -56,10 +55,8 @@
                         {% endfor %}
                     </select>
                 </div>
-
-                <!-- Фильтр по дате -->
                 <div class="filter-group">
-                    <label for="date" class="filter-label">Период</label>
+                    <label for="date" class="filter-label">Быстрый период</label>
                     <select name="date" id="date" class="form-control">
                         <option value="">Все даты</option>
                         <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Сегодня</option>
@@ -68,15 +65,20 @@
                         <option value="upcoming" {% if date_filter == 'upcoming' %}selected{% endif %}>Предстоящие</option>
                     </select>
                 </div>
+            </div>
 
-                <!-- Кнопки -->
+            <div class="filters-grid period-grid">
+                <div class="filter-group">
+                    <label for="date_from" class="filter-label">Заезд с</label>
+                    <input type="date" name="date_from" id="date_from" class="form-control" value="{{ date_from }}">
+                </div>
+                <div class="filter-group">
+                    <label for="date_to" class="filter-label">Выезд по</label>
+                    <input type="date" name="date_to" id="date_to" class="form-control" value="{{ date_to }}">
+                </div>
                 <div class="filter-actions">
-                    <button type="submit" class="btn btn-primary">
-                        🔍 Применить
-                    </button>
-                    <a href="{% url 'booking_list' %}" class="btn btn-secondary">
-                        ❌ Сбросить
-                    </a>
+                    <button type="submit" class="btn btn-primary">🔍 Применить</button>
+                    <a href="{% url 'booking_list' %}" class="btn btn-secondary">❌ Сбросить</a>
                 </div>
             </div>
         </form>
@@ -87,27 +89,95 @@
         <table class="bookings-table">
             <thead>
                 <tr>
-                    <th class="col-id">ID</th>
-                    <th class="col-customer">Клиент</th>
-                    <th class="col-room">Комната</th>
-                    <th class="col-dates">Даты</th>
-                    <th class="col-nights">Ночей</th>
-                    <th class="col-price">Стоимость</th>
-                    <th class="col-status">Статус</th>
-                    <th class="col-created">Создано</th>
-                    <th class="col-actions">Действия</th>
+                    <!-- ID -->
+                    <th class="col-id">
+                        {% if sort_by == 'id' %}
+                            <a href="?sort=-id&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">ID <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-id' %}
+                            <a href="?sort=id&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">ID <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=id&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">ID <span class="sort-arrow muted">⇅</span></a>
+                        {% endif %}
+                    </th>
+
+                    <!-- Клиент -->
+                    <th class="col-customer">
+                        {% if sort_by == 'customer__last_name' %}
+                            <a href="?sort=-customer__last_name&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Клиент <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-customer__last_name' %}
+                            <a href="?sort=customer__last_name&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Клиент <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=customer__last_name&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Клиент <span class="sort-arrow muted">⇅</span></a>
+                        {% endif %}
+                    </th>
+
+                    <!-- Комната -->
+                    <th class="col-room">
+                        {% if sort_by == 'room__room_number' %}
+                            <a href="?sort=-room__room_number&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Комната <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-room__room_number' %}
+                            <a href="?sort=room__room_number&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Комната <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=room__room_number&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Комната <span class="sort-arrow muted">⇅</span></a>
+                        {% endif %}
+                    </th>
+
+                    <!-- Даты -->
+                    <th class="col-dates">
+                        {% if sort_by == 'check_in_date' %}
+                            <a href="?sort=-check_in_date&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Даты <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-check_in_date' %}
+                            <a href="?sort=check_in_date&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Даты <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=check_in_date&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Даты <span class="sort-arrow muted">⇅</span></a>
+                        {% endif %}
+                    </th>
+
+                    <!-- Ночей — вычисляемое поле, без сортировки -->
+                    <th class="col-nights"><span class="sort-link-plain">Ночей</span></th>
+
+                    <!-- Стоимость -->
+                    <th class="col-price">
+                        {% if sort_by == 'total_price' %}
+                            <a href="?sort=-total_price&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Стоимость <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-total_price' %}
+                            <a href="?sort=total_price&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Стоимость <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=total_price&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Стоимость <span class="sort-arrow muted">⇅</span></a>
+                        {% endif %}
+                    </th>
+
+                    <!-- Статус -->
+                    <th class="col-status">
+                        {% if sort_by == 'status' %}
+                            <a href="?sort=-status&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Статус <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-status' %}
+                            <a href="?sort=status&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Статус <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=status&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Статус <span class="sort-arrow muted">⇅</span></a>
+                        {% endif %}
+                    </th>
+
+                    <!-- Создано -->
+                    <th class="col-created">
+                        {% if sort_by == 'created_at' %}
+                            <a href="?sort=-created_at&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Создано <span class="sort-arrow">▲</span></a>
+                        {% elif sort_by == '-created_at' %}
+                            <a href="?sort=created_at&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Создано <span class="sort-arrow">▼</span></a>
+                        {% else %}
+                            <a href="?sort=-created_at&search={{ search_query }}&status={{ status_filter }}&date={{ date_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="sort-link">Создано <span class="sort-arrow">▼</span></a>
+                        {% endif %}
+                    </th>
+
+                    <th class="col-actions"><span class="sort-link-plain">Действия</span></th>
                 </tr>
             </thead>
             <tbody>
                 {% for booking in bookings %}
                 <tr class="booking-row {% if booking.status == 'checked_in' %}row-checked-in{% elif booking.status == 'cancelled' %}row-cancelled{% endif %}">
-                    <td class="booking-id">
-                        <strong>#{{ booking.id }}</strong>
-                    </td>
+                    <td class="booking-id"><strong>#{{ booking.id }}</strong></td>
                     <td class="customer-info">
-                        <div class="customer-name">
-                            {{ booking.customer.first_name }} {{ booking.customer.last_name }}
-                        </div>
+                        <div class="customer-name">{{ booking.customer.first_name }} {{ booking.customer.last_name }}</div>
                         <div class="customer-contacts">
                             <small>📞 {{ booking.customer.phone }}</small>
                             <small>📧 {{ booking.customer.email }}</small>
@@ -119,77 +189,49 @@
                         <div class="room-floor">{{ booking.room.floor }} этаж</div>
                     </td>
                     <td class="dates-info">
-                        <div class="check-in">
-                            <strong>Заезд:</strong> {{ booking.check_in_date|date:"d.m.Y" }}
-                        </div>
-                        <div class="check-out">
-                            <strong>Выезд:</strong> {{ booking.check_out_date|date:"d.m.Y" }}
-                        </div>
+                        <div class="check-in"><strong>Заезд:</strong> {{ booking.check_in_date|date:"d.m.Y" }}</div>
+                        <div class="check-out"><strong>Выезд:</strong> {{ booking.check_out_date|date:"d.m.Y" }}</div>
                     </td>
-                    <td class="nights-count">
-                        {{ booking.nights }}
-                    </td>
+                    <td class="nights-count">{{ booking.nights }}</td>
                     <td class="price-info">
                         <div class="total-price">{{ booking.total_price }} руб.</div>
                         <div class="price-per-night">{{ booking.room.room_type.price_per_night }} руб./ночь</div>
                     </td>
                     <td class="status-cell">
-                        <span class="status-badge status-{{ booking.status }}">
-                            {{ booking.get_status_display }}
-                        </span>
+                        <span class="status-badge status-{{ booking.status }}">{{ booking.get_status_display }}</span>
                     </td>
-                    <td class="created-date">
-                        {{ booking.created_at|date:"d.m.Y H:i" }}
-                    </td>
+                    <td class="created-date">{{ booking.created_at|date:"d.m.Y H:i" }}</td>
                     <td class="actions-cell">
                         <div class="action-buttons">
-                            <!-- Быстрое изменение статуса -->
                             <div class="status-actions">
                                 {% if booking.status == 'awaiting_payment' %}
-                                <form method="post" action="" class="action-form">
+                                <form method="post" action="{% url 'booking_status_update' booking.pk 'confirmed' %}" class="action-form">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn-status btn-confirm" title="Подтвердить">
-                                        ✓
-                                    </button>
+                                    <button type="submit" class="btn-status btn-confirm" title="Подтвердить">✓</button>
                                 </form>
                                 {% endif %}
-
                                 {% if booking.status == 'confirmed' %}
-                                <form method="post" action="" class="action-form">
+                                <form method="post" action="{% url 'booking_status_update' booking.pk 'checked_in' %}" class="action-form">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn-status btn-checkin" title="Заселить">
-                                        🏨
-                                    </button>
+                                    <button type="submit" class="btn-status btn-checkin" title="Заселить">🏨</button>
                                 </form>
                                 {% endif %}
-
                                 {% if booking.status == 'checked_in' %}
-                                <form method="post" action="" class="action-form">
+                                <form method="post" action="{% url 'booking_status_update' booking.pk 'checked_out' %}" class="action-form">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn-status btn-checkout" title="Выселить">
-                                        🧳
-                                    </button>
+                                    <button type="submit" class="btn-status btn-checkout" title="Выселить">🧳</button>
                                 </form>
                                 {% endif %}
-
                                 {% if booking.status in 'confirmed,awaiting_payment,checked_in' %}
-                                <form method="post" action="" class="action-form">
+                                <form method="post" action="{% url 'booking_status_update' booking.pk 'cancelled' %}" class="action-form">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn-status btn-cancel" title="Отменить">
-                                        ❌
-                                    </button>
+                                    <button type="submit" class="btn-status btn-cancel" title="Отменить">❌</button>
                                 </form>
                                 {% endif %}
                             </div>
-
-                            <!-- Основные действия -->
                             <div class="main-actions">
-                                <a href="{% url 'booking_edit' booking.pk %}" class="btn-action btn-edit" title="Редактировать">
-                                    ✏️
-                                </a>
-                                <a href="{% url 'booking_delete' booking.pk %}" class="btn-action btn-delete" title="Удалить">
-                                    🗑️
-                                </a>
+                                <a href="{% url 'booking_edit' booking.pk %}" class="btn-action btn-edit" title="Редактировать">✏️</a>
+                                <a href="{% url 'booking_delete' booking.pk %}" class="btn-action btn-delete" title="Удалить">🗑️</a>
                             </div>
                         </div>
                     </td>
@@ -201,9 +243,7 @@
                             <div class="empty-icon">📅</div>
                             <h3>Бронирования не найдены</h3>
                             <p>Создайте первое бронирование или измените параметры фильтрации</p>
-                            <a href="{% url 'booking_create_with_customer' %}" class="btn btn-primary">
-                                + Создать бронирование
-                            </a>
+                            <a href="{% url 'booking_create_with_customer' %}" class="btn btn-primary">+ Создать бронирование</a>
                         </div>
                     </td>
                 </tr>
@@ -212,529 +252,131 @@
         </table>
     </div>
 
-    <!-- Пагинация (если нужно) -->
     {% if bookings.has_other_pages %}
     <div class="pagination">
         {% if bookings.has_previous %}
-        <a href="?page={{ bookings.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_filter %}&date={{ date_filter }}{% endif %}" class="page-link">← Назад</a>
+        <a href="?page={{ bookings.previous_page_number }}&sort={{ sort_by }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-link">← Назад</a>
         {% endif %}
-
-        <span class="current-page">
-            Страница {{ bookings.number }} из {{ bookings.paginator.num_pages }}
-        </span>
-
+        <span class="current-page">Страница {{ bookings.number }} из {{ bookings.paginator.num_pages }}</span>
         {% if bookings.has_next %}
-        <a href="?page={{ bookings.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_filter %}&date={{ date_filter }}{% endif %}" class="page-link">Вперед →</a>
+        <a href="?page={{ bookings.next_page_number }}&sort={{ sort_by }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-link">Вперед →</a>
         {% endif %}
     </div>
     {% endif %}
 </div>
 
 <style>
-    /* Основные стили */
-    .dashboard-container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 2rem 1rem;
-    }
+    .dashboard-container { max-width: 1400px; margin: 0 auto; padding: 2rem 1rem; }
+    .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .table-header h1 { color: #2c3e50; font-size: 2.25rem; font-weight: 700; margin: 0; }
+    .header-actions { display: flex; gap: 1rem; }
 
-    .table-header {
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .stat-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); text-align: center; transition: transform 0.3s ease; }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-number { font-size: 2.5rem; font-weight: 700; color: #667eea; margin-bottom: 0.5rem; }
+    .stat-label { color: #7f8c8d; font-size: 0.9rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .filters-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 2rem; }
+    .filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+    .period-grid { grid-template-columns: 1fr 1fr auto; margin-bottom: 0; padding-top: 1rem; border-top: 1px solid #f1f3f4; }
+    .filter-group { display: flex; flex-direction: column; }
+    .filter-label { color: #2c3e50; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .form-control { padding: 0.75rem; border: 2px solid #e9ecef; border-radius: 6px; font-size: 1rem; transition: all 0.3s ease; }
+    .form-control:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
+    .filter-actions { display: flex; gap: 0.5rem; align-items: flex-end; }
+
+    .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 2rem; }
+    .bookings-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .bookings-table thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+
+    /* Важно: th без padding, он переносится внутрь ссылки */
+    .bookings-table th { padding: 0; color: white; font-weight: 600; text-align: left; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .sort-link {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-bottom: 2rem;
-    }
-
-    .table-header h1 {
-        color: #2c3e50;
-        font-size: 2.25rem;
-        font-weight: 700;
-        margin: 0;
-    }
-
-    .header-actions {
-        display: flex;
-        gap: 1rem;
-    }
-
-    /* Статистика */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .stat-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        text-align: center;
-        transition: transform 0.3s ease;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-3px);
-    }
-
-    .stat-number {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #667eea;
-        margin-bottom: 0.5rem;
-    }
-
-    .stat-label {
-        color: #7f8c8d;
-        font-size: 0.9rem;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    /* Фильтры */
-    .filters-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        margin-bottom: 2rem;
-    }
-
-    .filters-grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr auto;
-        gap: 1rem;
-        align-items: end;
-    }
-
-    .filter-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .filter-label {
-        color: #2c3e50;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
-    }
-
-    .form-control {
-        padding: 0.75rem;
-        border: 2px solid #e9ecef;
-        border-radius: 6px;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-    }
-
-    .form-control:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .filter-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    /* Таблица */
-    .table-container {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        overflow: hidden;
-        margin-bottom: 2rem;
-    }
-
-    .bookings-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-    }
-
-    .bookings-table thead {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-
-    .bookings-table th {
-        color: white;
-        font-weight: 600;
+        gap: 0.4rem;
         padding: 1.25rem 0.75rem;
-        text-align: left;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .bookings-table tbody tr {
-        border-bottom: 1px solid #f1f3f4;
-        transition: all 0.3s ease;
-    }
-
-    .bookings-table tbody tr:hover {
-        background-color: #f8f9fa;
-    }
-
-    .bookings-table tbody tr.row-checked-in {
-        background-color: #f0f9ff;
-    }
-
-    .bookings-table tbody tr.row-cancelled {
-        background-color: #fef2f2;
-        opacity: 0.7;
-    }
-
-    .bookings-table td {
-        padding: 1rem 0.75rem;
-        vertical-align: top;
-    }
-
-    /* Стили для ячеек */
-    .booking-id {
-        font-weight: 600;
-        color: #2c3e50;
-    }
-
-    .customer-name {
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 0.25rem;
-    }
-
-    .customer-contacts {
-        display: flex;
-        flex-direction: column;
-        gap: 0.1rem;
-    }
-
-    .customer-contacts small {
-        color: #7f8c8d;
-        font-size: 0.8rem;
-    }
-
-    .room-number {
-        font-weight: 700;
-        color: #2c3e50;
-        font-size: 1.1rem;
-    }
-
-    .room-type {
-        color: #667eea;
-        font-weight: 500;
-        font-size: 0.85rem;
-    }
-
-    .room-floor {
-        color: #7f8c8d;
-        font-size: 0.8rem;
-    }
-
-    .dates-info {
-        font-size: 0.85rem;
-    }
-
-    .check-in, .check-out {
-        margin-bottom: 0.25rem;
-    }
-
-    .nights-count {
-        text-align: center;
-        font-weight: 600;
-        color: #2c3e50;
-        font-size: 1.1rem;
-    }
-
-    .total-price {
-        font-weight: 700;
-        color: #4CAF50;
-        font-size: 1rem;
-    }
-
-    .price-per-night {
-        color: #7f8c8d;
-        font-size: 0.8rem;
-    }
-
-    /* Статусы */
-    .status-badge {
-        padding: 0.4rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        display: inline-block;
-    }
-
-    .status-confirmed {
-        background: #e3f2fd;
-        color: #1976d2;
-    }
-
-    .status-checked_in {
-        background: #e8f5e8;
-        color: #2e7d32;
-    }
-
-    .status-checked_out {
-        background: #f3e5f5;
-        color: #7b1fa2;
-    }
-
-    .status-awaiting_payment {
-        background: #fff3e0;
-        color: #ef6c00;
-    }
-
-    .status-cancelled {
-        background: #ffebee;
-        color: #c62828;
-    }
-
-    /* Действия */
-    .actions-cell {
-        min-width: 150px;
-    }
-
-    .action-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .status-actions {
-        display: flex;
-        gap: 0.25rem;
-        flex-wrap: wrap;
-    }
-
-    .main-actions {
-        display: flex;
-        gap: 0.25rem;
-        justify-content: center;
-    }
-
-    .action-form {
-        display: inline;
-    }
-
-    .btn-status, .btn-action {
-        padding: 0.4rem;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 0.9rem;
+        color: white;
         text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
+        white-space: nowrap;
+        transition: background 0.2s ease;
     }
+    .sort-link:hover { background: rgba(255,255,255,0.15); color: white; }
+    .sort-link-plain { display: block; padding: 1.25rem 0.75rem; white-space: nowrap; }
+    .sort-arrow { font-size: 0.8rem; }
+    .sort-arrow.muted { opacity: 0.35; }
 
-    .btn-confirm {
-        background: #e3f2fd;
-        color: #1976d2;
-    }
+    .bookings-table tbody tr { border-bottom: 1px solid #f1f3f4; transition: background 0.2s ease; }
+    .bookings-table tbody tr:hover { background-color: #f8f9fa; }
+    .bookings-table tbody tr.row-checked-in { background-color: #f0f9ff; }
+    .bookings-table tbody tr.row-cancelled { background-color: #fef2f2; opacity: 0.7; }
+    .bookings-table td { padding: 1rem 0.75rem; vertical-align: top; }
 
-    .btn-confirm:hover {
-        background: #1976d2;
-        color: white;
-    }
+    .booking-id { font-weight: 600; color: #2c3e50; }
+    .customer-name { font-weight: 600; color: #2c3e50; margin-bottom: 0.25rem; }
+    .customer-contacts { display: flex; flex-direction: column; gap: 0.1rem; }
+    .customer-contacts small { color: #7f8c8d; font-size: 0.8rem; }
+    .room-number { font-weight: 700; color: #2c3e50; font-size: 1.1rem; }
+    .room-type { color: #667eea; font-weight: 500; font-size: 0.85rem; }
+    .room-floor { color: #7f8c8d; font-size: 0.8rem; }
+    .dates-info { font-size: 0.85rem; }
+    .check-in, .check-out { margin-bottom: 0.25rem; }
+    .nights-count { text-align: center; font-weight: 600; color: #2c3e50; font-size: 1.1rem; }
+    .total-price { font-weight: 700; color: #4CAF50; font-size: 1rem; }
+    .price-per-night { color: #7f8c8d; font-size: 0.8rem; }
 
-    .btn-checkin {
-        background: #e8f5e8;
-        color: #2e7d32;
-    }
+    .status-badge { padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; }
+    .status-confirmed { background: #e3f2fd; color: #1976d2; }
+    .status-checked_in { background: #e8f5e8; color: #2e7d32; }
+    .status-checked_out { background: #f3e5f5; color: #7b1fa2; }
+    .status-awaiting_payment { background: #fff3e0; color: #ef6c00; }
+    .status-cancelled { background: #ffebee; color: #c62828; }
 
-    .btn-checkin:hover {
-        background: #2e7d32;
-        color: white;
-    }
+    .actions-cell { min-width: 150px; }
+    .action-buttons { display: flex; flex-direction: column; gap: 0.5rem; }
+    .status-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+    .main-actions { display: flex; gap: 0.25rem; justify-content: center; }
+    .action-form { display: inline; }
+    .btn-status, .btn-action { padding: 0.4rem; border: none; border-radius: 4px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; }
+    .btn-confirm { background: #e3f2fd; color: #1976d2; } .btn-confirm:hover { background: #1976d2; color: white; }
+    .btn-checkin { background: #e8f5e8; color: #2e7d32; } .btn-checkin:hover { background: #2e7d32; color: white; }
+    .btn-checkout { background: #f3e5f5; color: #7b1fa2; } .btn-checkout:hover { background: #7b1fa2; color: white; }
+    .btn-cancel { background: #ffebee; color: #c62828; } .btn-cancel:hover { background: #c62828; color: white; }
+    .btn-edit { background: #e3f2fd; color: #1976d2; } .btn-edit:hover { background: #1976d2; color: white; }
+    .btn-delete { background: #ffebee; color: #c62828; } .btn-delete:hover { background: #c62828; color: white; }
 
-    .btn-checkout {
-        background: #f3e5f5;
-        color: #7b1fa2;
-    }
+    .no-bookings { text-align: center; padding: 4rem 2rem !important; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    .empty-icon { font-size: 4rem; opacity: 0.7; }
+    .empty-state h3 { color: #7f8c8d; margin: 0; font-weight: 500; }
+    .empty-state p { color: #bdc3c7; margin: 0; }
 
-    .btn-checkout:hover {
-        background: #7b1fa2;
-        color: white;
-    }
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem; }
+    .page-link { padding: 0.5rem 1rem; background: white; color: #667eea; text-decoration: none; border-radius: 6px; border: 1px solid #e9ecef; transition: all 0.3s ease; }
+    .page-link:hover { background: #667eea; color: white; }
+    .current-page { color: #7f8c8d; font-weight: 500; }
 
-    .btn-cancel {
-        background: #ffebee;
-        color: #c62828;
-    }
+    .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; text-decoration: none; text-align: center; transition: all 0.3s ease; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 15px rgba(102,126,234,0.3); }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
+    .btn-secondary { background: white; color: #667eea; border: 2px solid #667eea; }
+    .btn-secondary:hover { background: #667eea; color: white; }
 
-    .btn-cancel:hover {
-        background: #c62828;
-        color: white;
-    }
-
-    .btn-edit {
-        background: #e3f2fd;
-        color: #1976d2;
-    }
-
-    .btn-edit:hover {
-        background: #1976d2;
-        color: white;
-    }
-
-    .btn-delete {
-        background: #ffebee;
-        color: #c62828;
-    }
-
-    .btn-delete:hover {
-        background: #c62828;
-        color: white;
-    }
-
-    /* Пустое состояние */
-    .no-bookings {
-        text-align: center;
-        padding: 4rem 2rem !important;
-    }
-
-    .empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .empty-icon {
-        font-size: 4rem;
-        opacity: 0.7;
-    }
-
-    .empty-state h3 {
-        color: #7f8c8d;
-        margin: 0;
-        font-weight: 500;
-    }
-
-    .empty-state p {
-        color: #bdc3c7;
-        margin: 0;
-    }
-
-    /* Пагинация */
-    .pagination {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 1rem;
-        margin-top: 2rem;
-    }
-
-    .page-link {
-        padding: 0.5rem 1rem;
-        background: white;
-        color: #667eea;
-        text-decoration: none;
-        border-radius: 6px;
-        border: 1px solid #e9ecef;
-        transition: all 0.3s ease;
-    }
-
-    .page-link:hover {
-        background: #667eea;
-        color: white;
-    }
-
-    .current-page {
-        color: #7f8c8d;
-        font-weight: 500;
-    }
-
-    /* Кнопки */
-    .btn {
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: 600;
-        text-decoration: none;
-        text-align: center;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .btn-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-
-    .btn-secondary {
-        background: white;
-        color: #667eea;
-        border: 2px solid #667eea;
-    }
-
-    .btn-secondary:hover {
-        background: #667eea;
-        color: white;
-    }
-
-    /* Адаптивность */
     @media (max-width: 768px) {
-        .table-header {
-            flex-direction: column;
-            gap: 1rem;
-            text-align: center;
-        }
-
-        .filters-grid {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
-
-        .filter-actions {
-            justify-content: center;
-        }
-
-        .table-container {
-            overflow-x: auto;
-        }
-
-        .bookings-table {
-            min-width: 1000px;
-        }
-
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .action-buttons {
-            flex-direction: row;
-            justify-content: center;
-        }
+        .table-header { flex-direction: column; gap: 1rem; text-align: center; }
+        .filters-grid { grid-template-columns: 1fr; gap: 1rem; }
+        .period-grid { grid-template-columns: 1fr; }
+        .filter-actions { justify-content: center; }
+        .table-container { overflow-x: auto; }
+        .bookings-table { min-width: 1000px; }
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
     }
-
     @media (max-width: 480px) {
-        .stats-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .table-header h1 {
-            font-size: 1.75rem;
-        }
+        .stats-grid { grid-template-columns: 1fr; }
+        .table-header h1 { font-size: 1.75rem; }
     }
 </style>
 {% endblock %}
+ 

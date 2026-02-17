@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
@@ -462,9 +462,27 @@ def booking_list(request):
     status_filter = request.GET.get('status','')
     date_filter = request.GET.get('date','')
     search_query = request.GET.get('search','')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    sort_by = request.GET.get('sort', '-created_at')
+
+    #Допустимые поля сортировки
+    ALLOWED_SORT_FIELDS = {
+        'id', '-id',
+        'check_in_date', '-check_in_date',
+        'check_out_date', '-check_out_date',
+        'total_price', '-total_price',
+        'status', '-status',
+        'created_at', '-created_at',
+        'customer__last_name', '-customer__last_name',
+        'room__room_number', '-room__room_number'
+    }
+
+    if sort_by not in ALLOWED_SORT_FIELDS:
+        sort_by = '-created_at'
 
     #Базовый запрос
-    bookings = Booking.objects.select_related('customer', 'room', 'room__room_type').order_by('-created_at')
+    bookings = Booking.objects.select_related('customer', 'room', 'room__room_type').order_by(sort_by)
 
     #Применяем фильтры
     if status_filter:
@@ -484,8 +502,23 @@ def booking_list(request):
                 Q(check_in_date__range = [start_week, end_week]) |
                 Q(check_out_date__range = [start_week, end_week])
             )
-        elif date_filter == "upcomming":
+        elif date_filter == "upcoming":
             bookings = bookings.filter(check_in_date__gte = today)
+    #Фильтр по произвольному периоду
+    if date_from:
+        try:
+            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+            bookings = bookings.filter(check_in_date__gte=date_from_parsed)
+        except ValueError:
+            date_from = ''
+
+    if date_from:
+        try:
+            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+            bookings = bookings.filter(check_out_date__lte=date_to_parsed)
+        except ValueError:
+            date_to = ''
+
     if search_query:
         bookings = bookings.filter(
             Q(customer__first_name__icontains = search_query) |
@@ -497,20 +530,23 @@ def booking_list(request):
     #Статистика для карточек
     total_bookings = Booking.objects.count()
     today_checkins = Booking.objects.filter(check_in_date = date.today(),
-                                            status__in=['comfirmed', 'awaiting_payment']).count()
+                                            status__in=['confirmed', 'awaiting_payment']).count()
     today_checkouts = Booking.objects.filter(check_out_date = date.today(),
                                             status = 'checked_in').count()
-    active_bookings = Booking.objects.filter(status__in = ['comfirmed', 'awaiting_payment', 'checked_in']).count()
+    active_bookings = Booking.objects.filter(status__in = ['confirmed', 'awaiting_payment', 'checked_in']).count()
 
     context = {
         'bookings': bookings,
         'status_filter': status_filter,
         'date_filter': date_filter,
+        'date_from': date_from,
+        'date_to': date_to,
         'search_query': search_query,
         'total_bookings': total_bookings,
         'today_checkins': today_checkins,
         'today_checkouts': today_checkouts,
-        'active_bookings': active_bookings
+        'active_bookings': active_bookings,
+        'booking_statuses': Booking.BOOKING_STATUS
     }
     return render(request, 'admin_panel/booking_list.html', context=context)
 
