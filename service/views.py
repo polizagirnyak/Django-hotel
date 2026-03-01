@@ -437,7 +437,7 @@ def customer_service_booking_add(request, customer_id):
 
             messages.success(request, 'Запись на услугу успешно добавлена')
 
-            return redirect('customer_service_bookings')
+            return redirect('service_booking_list')
     else:
         form = ServiceBookingForm(initial={'customer':customer})
     #Подготавливаем данные об услугах JS

@@ -1,0 +1,480 @@
+{% extends 'admin_panel/base.html' %}
+{% load static %}
+ 
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="chess-card">
+        <div class="chess-header">
+            <h3>🎯 Шахматка номеров</h3>
+            <div class="export-buttons">
+                <a href="?start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}{% if filter_params.room_type %}&room_type={{ filter_params.room_type }}{% endif %}{% if filter_params.floor %}&floor={{ filter_params.floor }}{% endif %}{% if filter_params.status %}&status={{ filter_params.status }}{% endif %}&export=excel"
+                   class="btn-export btn-excel">📊 Excel</a>
+                <a href="?start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}{% if filter_params.room_type %}&room_type={{ filter_params.room_type }}{% endif %}{% if filter_params.floor %}&floor={{ filter_params.floor }}{% endif %}{% if filter_params.status %}&status={{ filter_params.status }}{% endif %}&export=pdf"
+                   class="btn-export btn-pdf">📄 PDF</a>
+            </div>
+        </div>
+ 
+        <!-- Фильтры -->
+        <form method="get" class="filters-bar">
+            <div class="filter-row">
+                <div class="filter-item">
+                    <label>Начало периода</label>
+                    <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="f-input">
+                </div>
+                <div class="filter-item">
+                    <label>Конец периода</label>
+                    <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="f-input">
+                </div>
+                <div class="filter-item">
+                    <label>Тип номера</label>
+                    <select name="room_type" class="f-input">
+                        <option value="">Все типы</option>
+                        {% for rt in room_types %}
+                        <option value="{{ rt.id }}" {% if filter_params.room_type == rt.id|stringformat:"s" %}selected{% endif %}>{{ rt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Этаж</label>
+                    <select name="floor" class="f-input">
+                        <option value="">Все</option>
+                        {% for f in floors %}
+                        <option value="{{ f }}" {% if filter_params.floor == f|stringformat:"s" %}selected{% endif %}>{{ f }} этаж</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Статус комнаты</label>
+                    <select name="status" class="f-input">
+                        <option value="">Все</option>
+                        {% for code, name in status_choices %}
+                        <option value="{{ code }}" {% if filter_params.status == code %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-apply">🔍 Применить</button>
+                    {%comment%}<a href="{% url 'room_schedule' %}" class="btn-reset">✕</a>{%endcomment%}
+                </div>
+            </div>
+        </form>
+ 
+        <!-- Инфо-полоса -->
+        <div class="info-bar">
+            <span>📅 Период: <strong>{{ start_date|date:"d.m.Y" }} — {{ end_date|date:"d.m.Y" }}</strong> ({{ date_range|length }} дн.)</span>
+            <span>🚪 Номеров: <strong>{{ rooms|length }}</strong></span>
+            <span>👥 Клиентов: <strong>{{ customer_colors|length }}</strong></span>
+        </div>
+ 
+        <!-- Шахматка -->
+        <div class="chess-scroll-wrap">
+            <table class="chess-table" id="chessTable">
+                <thead>
+                    <tr>
+                        <th class="room-col-header sticky-col">Номер</th>
+                        {% for item in date_range_rich %}
+                        <th class="date-header {% if item.is_weekend %}weekend{% endif %}">
+                            <div class="date-day">{{ item.day }}</div>
+                            <div class="date-dow">{{ item.dow }}</div>
+                            <div class="date-mon">{{ item.mon }}</div>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% regroup rooms by floor as floors_list %}
+                    {% for floor_group in floors_list %}
+ 
+                    <!-- Заголовок этажа -->
+                    <tr class="floor-header-row">
+                        <td class="floor-label sticky-col" colspan="{{ date_range|length|add:1 }}">
+                            🏢 {{ floor_group.grouper }} этаж
+                        </td>
+                    </tr>
+ 
+                    {% for room in floor_group.list %}
+                    <tr class="room-row">
+                        <!-- Ячейка с описанием номера -->
+                        <td class="room-info-cell sticky-col">
+                            <div class="room-number">{{ room.room_number }}</div>
+                            <div class="room-meta">
+                                <span>{{ room.room_type.name }}</span>
+                                <span class="room-price">{{ room.room_type.price_per_night }} ₽</span>
+                            </div>
+                            <span class="room-status-badge status-{{ room.status }}">{{ room.get_status_display }}</span>
+                        </td>
+ 
+                        {% for date in date_range %}
+                        {% with date_str=date|date:"Y-m-d" %}
+                        <td class="day-cell {% if date.weekday >= 5 %}weekend-day{% endif %}"
+                            data-room="{{ room.id }}"
+                            data-date="{{ date_str }}">
+ 
+                            {# Ищем бронирования для этой комнаты и даты #}
+                            {% with room_bookings=schedule_data|default_if_none:"" %}
+                            {% for booking_item in bookings_list %}
+                                {% if booking_item.room_id == room.id and booking_item.date_str == date_str %}
+                                <div class="booking-segment"
+                                     style="background: {{ booking_item.color }}26; border-left: 3px solid {{ booking_item.color }};"
+                                     title="{{ booking_item.customer_name }} | {{ booking_item.check_in|date:'d.m.Y' }} — {{ booking_item.check_out|date:'d.m.Y' }} | {{ booking_item.status_display }}">
+                                    <div class="seg-name" style="color: {{ booking_item.color_dark }};">{{ booking_item.customer_last_name }}</div>
+                                    <div class="seg-status">{{ booking_item.status_short }}</div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                            {% endwith %}
+                        </td>
+                        {% endwith %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="{{ date_range|length|add:1 }}" class="empty-state">
+                            Нет номеров по выбранным фильтрам
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+ 
+        <!-- Легенда -->
+        {% if legend_items %}
+        <div class="legend-bar">
+            <strong>Легенда:</strong>
+            <div class="legend-items">
+                {% for item in legend_items %}
+                <div class="legend-item">
+                    <span class="legend-dot" style="background:{{ item.color }};"></span>
+                    <span class="legend-name">{{ item.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+ 
+        <!-- Статистика -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-label">Всего номеров</span>
+                <strong>{{ rooms|length }}</strong>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Занято дней (клетки)</span>
+                <strong id="booked-count">—</strong>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Свободно дней</span>
+                <strong id="free-count">—</strong>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Загрузка</span>
+                <strong id="occupancy">—</strong>
+            </div>
+        </div>
+    </div>
+</div>
+ 
+<!-- Статус-шорткоды -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Статистика
+    var total = document.querySelectorAll('.day-cell').length;
+    var booked = document.querySelectorAll('.day-cell .booking-segment').length;
+    var free = total - booked;
+    document.getElementById('booked-count').textContent = booked;
+    document.getElementById('free-count').textContent = free;
+    document.getElementById('occupancy').textContent = total > 0 ? Math.round(booked / total * 100) + '%' : '0%';
+ 
+    // Тултипы при наведении
+    document.querySelectorAll('.booking-segment').forEach(function(el) {
+        el.addEventListener('mouseenter', function(e) {
+            var tip = document.createElement('div');
+            tip.className = 'chess-tooltip';
+            tip.textContent = el.getAttribute('title');
+            document.body.appendChild(tip);
+            var rect = el.getBoundingClientRect();
+            tip.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+            tip.style.left = (rect.left + window.scrollX) + 'px';
+            el._tip = tip;
+        });
+        el.addEventListener('mouseleave', function() {
+            if (el._tip) { el._tip.remove(); el._tip = null; }
+        });
+    });
+});
+</script>
+ 
+<style>
+/* ── Общий контейнер ── */
+.chess-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.1);
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+ 
+.chess-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+.chess-header h3 { margin: 0; font-size: 1.4rem; }
+ 
+.export-buttons { display: flex; gap: .5rem; }
+.btn-export {
+    padding: .4rem .9rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: .85rem;
+    transition: opacity .2s;
+}
+.btn-export:hover { opacity: .85; }
+.btn-excel { background: #1d6f42; color: #fff; }
+.btn-pdf   { background: #c0392b; color: #fff; }
+ 
+/* ── Фильтры ── */
+.filters-bar { padding: 1rem 1.5rem; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+.filter-row  { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
+.filter-item { display: flex; flex-direction: column; gap: .25rem; min-width: 140px; }
+.filter-item label { font-size: .78rem; font-weight: 600; color: #555; }
+.f-input {
+    padding: .45rem .6rem;
+    border: 1.5px solid #d0d7de;
+    border-radius: 6px;
+    font-size: .88rem;
+    background: #fff;
+    transition: border-color .2s;
+}
+.f-input:focus { outline: none; border-color: #667eea; }
+.filter-actions { display: flex; gap: .4rem; align-items: flex-end; }
+.btn-apply {
+    padding: .45rem 1.1rem;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: .88rem;
+    font-weight: 600;
+}
+.btn-apply:hover { opacity: .88; }
+.btn-reset {
+    padding: .45rem .75rem;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    color: #666;
+    text-decoration: none;
+    font-size: .95rem;
+    background: white;
+}
+.btn-reset:hover { background: #f0f0f0; }
+ 
+/* ── Инфо-полоса ── */
+.info-bar {
+    display: flex;
+    gap: 2rem;
+    padding: .6rem 1.5rem;
+    background: #eef2ff;
+    border-bottom: 1px solid #d0d7f7;
+    font-size: .88rem;
+    color: #333;
+}
+ 
+/* ── Прокрутка шахматки ── */
+.chess-scroll-wrap {
+    overflow: auto;
+    max-height: 72vh;
+}
+ 
+/* ── Таблица ── */
+.chess-table {
+    border-collapse: collapse;
+    font-size: .82rem;
+    min-width: 100%;
+    table-layout: fixed;
+}
+ 
+/* Липкие элементы */
+.chess-table thead { position: sticky; top: 0; z-index: 30; }
+.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    background: #f8f9fa;
+    box-shadow: 2px 0 5px rgba(0,0,0,.07);
+}
+.chess-table thead .sticky-col { z-index: 40; }
+ 
+/* Заголовок "Номер" */
+.room-col-header {
+    min-width: 160px;
+    width: 160px;
+    padding: .6rem .75rem;
+    background: #f0f0f0;
+    font-weight: 700;
+    border-right: 2px solid #ddd;
+    border-bottom: 2px solid #ccc;
+    text-align: left;
+}
+ 
+/* Заголовки дат */
+.date-header {
+    min-width: 80px;
+    width: 80px;
+    padding: .3rem .2rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-bottom: 2px solid #ccc;
+    border-right: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+.date-header.weekend { background: #fff3cd; }
+.date-day { font-weight: 700; font-size: .95rem; line-height: 1.1; }
+.date-dow { font-size: .7rem; color: #666; }
+.date-mon { font-size: .68rem; color: #999; }
+ 
+/* Строка этажа */
+.floor-header-row td {
+    padding: .3rem .75rem;
+    background: linear-gradient(90deg, #667eea18, transparent);
+    font-weight: 700;
+    font-size: .8rem;
+    color: #555;
+    border-top: 2px solid #d0d7f7;
+    border-bottom: 1px solid #e9ecef;
+}
+.floor-label { position: sticky !important; left: 0; z-index: 15 !important; background: #eef0fb !important; }
+ 
+/* Строка номера */
+.room-row { border-bottom: 1px solid #e9ecef; }
+.room-row:hover { background: #f0f4ff; }
+ 
+/* Ячейка с инфо о комнате */
+.room-info-cell {
+    min-width: 160px;
+    width: 160px;
+    padding: .5rem .75rem;
+    vertical-align: top;
+    border-right: 2px solid #ddd;
+    background: #fff;
+}
+.room-number { font-weight: 700; font-size: 1rem; color: #2c3e50; }
+.room-meta { font-size: .72rem; color: #666; display: flex; flex-direction: column; gap: .1rem; margin: .15rem 0; }
+.room-price { color: #27ae60; font-weight: 600; }
+.room-status-badge {
+    display: inline-block;
+    padding: .15rem .5rem;
+    border-radius: 10px;
+    font-size: .65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.status-available   { background: #d4edda; color: #155724; }
+.status-occupied    { background: #cce5ff; color: #004085; }
+.status-maintenance { background: #fff3cd; color: #856404; }
+.status-cleaning    { background: #f8d7da; color: #721c24; }
+ 
+/* Ячейка дня */
+.day-cell {
+    min-width: 80px;
+    width: 80px;
+    height: 62px;
+    vertical-align: top;
+    padding: 2px;
+    border-right: 1px solid #e9ecef;
+    position: relative;
+}
+.day-cell.weekend-day { background: #fffbf0; }
+ 
+/* Блок бронирования */
+.booking-segment {
+    margin: 2px 1px;
+    padding: 3px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    overflow: hidden;
+}
+.booking-segment:hover {
+    transform: scale(1.03);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    z-index: 50;
+    position: relative;
+}
+.seg-name {
+    font-weight: 700;
+    font-size: .72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 72px;
+}
+.seg-status {
+    font-size: .62rem;
+    color: #444;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+ 
+/* Тултип */
+.chess-tooltip {
+    position: absolute;
+    background: #2c3e50;
+    color: white;
+    padding: .4rem .7rem;
+    border-radius: 6px;
+    font-size: .78rem;
+    white-space: nowrap;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+ 
+/* Легенда */
+.legend-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+    padding: .75rem 1.5rem;
+    border-top: 1px solid #e9ecef;
+    font-size: .82rem;
+}
+.legend-items { display: flex; flex-wrap: wrap; gap: .5rem; }
+.legend-item  { display: flex; align-items: center; gap: .3rem; }
+.legend-dot   { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-name  { color: #444; }
+ 
+/* Статистика */
+.stats-bar {
+    display: flex;
+    gap: 2rem;
+    padding: .75rem 1.5rem;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+.stat-item { display: flex; flex-direction: column; gap: .1rem; font-size: .82rem; }
+.stat-label { color: #777; font-size: .75rem; text-transform: uppercase; letter-spacing: .3px; }
+.stat-item strong { font-size: 1.1rem; color: #2c3e50; }
+ 
+/* Пустое состояние */
+.empty-state { text-align: center; padding: 3rem; color: #999; font-size: 1rem; }
+ 
+/* Адаптив */
+@media (max-width: 768px) {
+    .filter-row { flex-direction: column; }
+    .filter-item { min-width: 100%; }
+    .info-bar { flex-wrap: wrap; gap: .5rem; }
+    .stats-bar { flex-wrap: wrap; }
+}
+</style>
+{% endblock %}

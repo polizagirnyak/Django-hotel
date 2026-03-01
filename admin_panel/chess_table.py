@@ -1,3 +1,5 @@
+from http.cookiejar import DAYS
+
 from django.shortcuts import render
 from django.db.models import Q
 from datetime import datetime, timedelta
@@ -58,7 +60,9 @@ class ChessTableView(View):
         except ValueError:
             end_date = start_date+timedelta(days=30)
         if end_date < start_date:
-            end_date = start_date+timedelta(minutes=30)
+            end_date = start_date+timedelta(days=30)
+
+        #Ограничение диапазона 90 днями
         if (end_date-start_date).days > 90:
             end_date = start_date+timedelta(days=30)
 
@@ -68,6 +72,7 @@ class ChessTableView(View):
             date_range.append(cur)
             cur+=timedelta(days=1)
 
+        # --- Параметры фильтрации ----------------------------------
         room_type_id = request.GET.get('room_type', '')
         floor = request.GET.get('floor', '')
         status_filter = request.GET.get('status', '')
@@ -86,8 +91,8 @@ class ChessTableView(View):
 
         # ----Бронирования ----------------------------------
         bookings_qs = Booking.objects.filter(
-            check_in_date = end_date,
-            check_out_date = start_date
+            check_in_date__lte = end_date,
+            check_out_date__gt = start_date
         ).select_related('customer', 'room', 'room__room_type')
 
         #Если фильтр по комнатам активен - ограничиваем бронирование
@@ -96,6 +101,90 @@ class ChessTableView(View):
             bookings_qs = bookings_qs.filter(room_id__in=room_ids)
         bookings = list(bookings_qs)
 
+        # --- Цвета клиентов ----------------------------------
+        customer_colors = {}
+        color_idx = 0
+        for b in bookings:
+            cid = b.customer.id
+            if cid not in customer_colors:
+                customer_colors[cid] = CUSTOMER_COLORS[color_idx % len(CUSTOMER_COLORS)]
+                color_idx += 1
 
+        #Передаем список бронирований в шаблон
+        bookings_list = []
+        for b in bookings:
+            room_id = b.room.id
+            light,dark = customer_colors[b.customer.id]
+            #Определяем пересечение бронирования с диапазоном
+            s_start = max(b.check_in_date, start_date)
+            s_end = min(b.check_out_date - timedelta(days=1), end_date)
+            cur = s_start
+            while cur <= s_end:
+                bookings_list.append({
+                    'room_id': room_id,
+                    'date_str': cur.strftime('%Y-%m-%d'),
+                    'customer_name': b.customer.get_full_name(),
+                    'customer_last_name': b.customer.last_name,
+                    'color': light,
+                    'color_dark': dark,
+                    'check_in': b.check_in_date,
+                    'check_out': b.check_out_date,
+                    'status_display': b.get_status_display(),
+                    'status_short': STATUS_SHORT.get(b.status, b.status),
+                    'total_price': b.total_price,
+                    'booking_id': b.id
+                })
+                cur += timedelta(days=1)
 
+        #Легенда для шахматки
+        seen_customers = {}
+        for b in bookings:
+            cid = b.customer.id
+            if cid not in seen_customers:
+                light, dark = customer_colors[cid]
+                seen_customers[cid] = {
+                    'name': b.customer.get_full_name(),
+                    'color': light
+                }
+        legend_items = list(seen_customers.values())
 
+        #Данные для фильтров
+        room_types = RoomType.objects.all()
+        floors = Room.objects.order_by('floor').values_list('floor', flat=True).distinct()
+
+        filter_params = {
+            'room_type': room_type_id,
+            'floor': floor,
+            'status': status_filter
+        }
+
+        #Русские названия дней недели для шаблона
+        DAYS_RU_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+        MONTHS_RU_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн',
+                           'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+        date_range_rich = [
+            {
+                'date': d,
+                'day': d.strftime('%d'),
+                'dow': DAYS_RU_SHORT[d.weekday()],
+                'mon': MONTHS_RU_SHORT[d.month-1],
+                'is_weekend': d.weekday() >= 5,
+                'date_str': d.strftime('%Y-%m-%d'),
+            }
+            for d in date_range
+        ]
+        context = {
+            'rooms': rooms,
+            'date_range': date_range,
+            'date_range_rich': date_range_rich,
+            'bookings_list': bookings_list,
+            'start_date': start_date,
+            'end_date': end_date,
+            'room_types': room_types,
+            'floors': floors,
+            'status_choices': Room.ROOM_STATUS,
+            'customer_colors': customer_colors,
+            'legend_items': legend_items,
+            'filter_params': filter_params
+        }
+        return render(request, 'admin_panel/chess_table.html', context=context)

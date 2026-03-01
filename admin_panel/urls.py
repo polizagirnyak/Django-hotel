@@ -6,6 +6,7 @@ from .views import (room_edit, room_type_edit, room_list,
                     booking_dashboard, booking_delete, index, search_customers, get_customer_details)
 from .views import (customer_edit, customer_list, customer_detail, booking_status_update)
 from service.views import customer_service_bookings, customer_service_booking_add
+from .chess_table import ChessTableView
 
 urlpatterns = [
     path('', index, name='index'),
@@ -38,4 +39,6 @@ urlpatterns = [
 
     path('bookings/search-customers/', search_customers, name='search_customers'),
     path('bookings/get-customer/<int:customer_id>/', get_customer_details, name='get_customer_details'),
+
+    path('chess_table/', ChessTableView.as_view(), name='chess_table'),
 ]
