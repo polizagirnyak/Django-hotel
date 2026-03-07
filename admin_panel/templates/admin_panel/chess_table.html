@@ -1,6 +1,7 @@
 {% extends 'admin_panel/base.html' %}
 {% load static %}
- 
+{% load custom_filters %}
+
 {% block content %}
 <div class="container-fluid mt-3">
     <div class="chess-card">
@@ -13,7 +14,7 @@
                    class="btn-export btn-pdf">📄 PDF</a>
             </div>
         </div>
- 
+
         <!-- Фильтры -->
         <form method="get" class="filters-bar">
             <div class="filter-row">
@@ -54,18 +55,17 @@
                 </div>
                 <div class="filter-actions">
                     <button type="submit" class="btn-apply">🔍 Применить</button>
-                    {%comment%}<a href="{% url 'room_schedule' %}" class="btn-reset">✕</a>{%endcomment%}
+                    <a href="{% url 'chess_table' %}" class="btn-reset">✕</a>
                 </div>
             </div>
         </form>
- 
+
         <!-- Инфо-полоса -->
         <div class="info-bar">
             <span>📅 Период: <strong>{{ start_date|date:"d.m.Y" }} — {{ end_date|date:"d.m.Y" }}</strong> ({{ date_range|length }} дн.)</span>
             <span>🚪 Номеров: <strong>{{ rooms|length }}</strong></span>
             <span>👥 Клиентов: <strong>{{ customer_colors|length }}</strong></span>
         </div>
- 
         <!-- Шахматка -->
         <div class="chess-scroll-wrap">
             <table class="chess-table" id="chessTable">
@@ -84,16 +84,16 @@
                 <tbody>
                     {% regroup rooms by floor as floors_list %}
                     {% for floor_group in floors_list %}
- 
+
                     <!-- Заголовок этажа -->
                     <tr class="floor-header-row">
                         <td class="floor-label sticky-col" colspan="{{ date_range|length|add:1 }}">
                             🏢 {{ floor_group.grouper }} этаж
                         </td>
                     </tr>
- 
+
                     {% for room in floor_group.list %}
-                    <tr class="room-row">
+                    <tr class="room-row" data-room-id="{{ room.id }}">
                         <!-- Ячейка с описанием номера -->
                         <td class="room-info-cell sticky-col">
                             <div class="room-number">{{ room.room_number }}</div>
@@ -103,27 +103,56 @@
                             </div>
                             <span class="room-status-badge status-{{ room.status }}">{{ room.get_status_display }}</span>
                         </td>
- 
+
+                        {% comment %}
+                          Логика: проходим по датам в date_range.
+                          Если дата — начало бронирования для этой комнаты → рисуем colspan-ячейку на весь период.
+                          Если дата попадает внутрь уже нарисованного бронирования → пропускаем (скипаем).
+                          Если дата свободна → рисуем пустую ячейку.
+
+                          Для этого в view нужно передать schedule_map[room_id][date_str] = booking_item | None,
+                          а также booking_spans[room_id][date_str] = кол-во дней (colspan) для первого дня бронирования.
+
+                          Шаблон ниже ожидает переменные:
+                            - schedule_map  : dict  room_id → date_str → booking_item (или None)
+                            - booking_spans : dict  room_id → date_str → span (int, только для первого дня)
+                        {% endcomment %}
+
                         {% for date in date_range %}
                         {% with date_str=date|date:"Y-m-d" %}
-                        <td class="day-cell {% if date.weekday >= 5 %}weekend-day{% endif %}"
-                            data-room="{{ room.id }}"
-                            data-date="{{ date_str }}">
- 
-                            {# Ищем бронирования для этой комнаты и даты #}
-                            {% with room_bookings=schedule_data|default_if_none:"" %}
-                            {% for booking_item in bookings_list %}
-                                {% if booking_item.room_id == room.id and booking_item.date_str == date_str %}
-                                <div class="booking-segment"
-                                     style="background: {{ booking_item.color }}26; border-left: 3px solid {{ booking_item.color }};"
-                                     title="{{ booking_item.customer_name }} | {{ booking_item.check_in|date:'d.m.Y' }} — {{ booking_item.check_out|date:'d.m.Y' }} | {{ booking_item.status_display }}">
-                                    <div class="seg-name" style="color: {{ booking_item.color_dark }};">{{ booking_item.customer_last_name }}</div>
-                                    <div class="seg-status">{{ booking_item.status_short }}</div>
+
+                        {# Получаем бронирование на эту дату для этой комнаты #}
+                        {% with cell=schedule_map|get_item:room.id|get_item:date_str %}
+                        {% with span=booking_spans|get_item:room.id|get_item:date_str %}
+                {% if span %}
+                            {# Первый день бронирования — рисуем широкую ячейку #}
+                            <td class="day-cell booking-cell {% if date.weekday >= 5 %}weekend-day{% endif %}"
+                                colspan="{{ span }}"
+                                data-room="{{ room.id }}"
+                                data-date="{{ date_str }}"
+                                title="{{ cell.customer_name }} | {{ cell.check_in|date:'d.m.Y' }} — {{ cell.check_out|date:'d.m.Y' }} | {{ cell.status_display }}">
+                                <div class="booking-segment-span"
+                                     style="background: linear-gradient(135deg, {{ cell.color }}33, {{ cell.color }}18); border-left: 4px solid {{ cell.color }}; border-right: 2px solid {{ cell.color }}55;">
+                                    <div class="seg-name" style="color: {{ cell.color_dark }};">
+                                        {{ cell.customer_last_name }} {{ cell.customer_first_name }}
+                                    </div>
+                                    <div class="seg-dates" style="color: {{ cell.color_dark }}99;">
+                                        {{ cell.check_in|date:'d.m' }} — {{ cell.check_out|date:'d.m' }}
+                                    </div>
+                                    <div class="seg-status">{{ cell.status_display }}</div>
                                 </div>
-                                {% endif %}
-                            {% endfor %}
-                            {% endwith %}
-                        </td>
+                            </td>
+                        {% elif cell %}
+                            {# Середина бронирования — ячейка уже занята colspan, пропускаем #}
+                        {% else %}
+                            {# Свободная ячейка #}
+                            <td class="day-cell {% if date.weekday >= 5 %}weekend-day{% endif %}"
+                                data-room="{{ room.id }}"
+                                data-date="{{ date_str }}"></td>
+                        {% endif %}
+
+                        {% endwith %}
+                        {% endwith %}
                         {% endwith %}
                         {% endfor %}
                     </tr>
@@ -138,7 +167,7 @@
                 </tbody>
             </table>
         </div>
- 
+
         <!-- Легенда -->
         {% if legend_items %}
         <div class="legend-bar">
@@ -153,7 +182,7 @@
             </div>
         </div>
         {% endif %}
- 
+
         <!-- Статистика -->
         <div class="stats-bar">
             <div class="stat-item">
@@ -175,37 +204,48 @@
         </div>
     </div>
 </div>
- 
-<!-- Статус-шорткоды -->
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Статистика
-    var total = document.querySelectorAll('.day-cell').length;
-    var booked = document.querySelectorAll('.day-cell .booking-segment').length;
-    var free = total - booked;
-    document.getElementById('booked-count').textContent = booked;
+    // Статистика: считаем по colspan
+    var totalCells = 0;
+    var bookedCells = 0;
+    document.querySelectorAll('.room-row').forEach(function(row) {
+        document.querySelectorAll('thead .date-header').length; // всего дней
+    });
+
+    var totalDays = document.querySelectorAll('thead .date-header').length;
+    var roomCount = document.querySelectorAll('.room-row').length;
+    totalCells = totalDays * roomCount;
+
+    document.querySelectorAll('.booking-cell').forEach(function(td) {
+        bookedCells += parseInt(td.getAttribute('colspan') || 1);
+    });
+
+    var free = totalCells - bookedCells;
+    document.getElementById('booked-count').textContent = bookedCells;
     document.getElementById('free-count').textContent = free;
-    document.getElementById('occupancy').textContent = total > 0 ? Math.round(booked / total * 100) + '%' : '0%';
- 
+    document.getElementById('occupancy').textContent = totalCells > 0 ? Math.round(bookedCells / totalCells * 100) + '%' : '0%';
+
     // Тултипы при наведении
-    document.querySelectorAll('.booking-segment').forEach(function(el) {
-        el.addEventListener('mouseenter', function(e) {
+    document.querySelectorAll('.booking-cell').forEach(function(td) {
+        td.addEventListener('mouseenter', function(e) {
             var tip = document.createElement('div');
             tip.className = 'chess-tooltip';
-            tip.textContent = el.getAttribute('title');
+            tip.textContent = td.getAttribute('title');
             document.body.appendChild(tip);
-            var rect = el.getBoundingClientRect();
+            var rect = td.getBoundingClientRect();
             tip.style.top = (rect.bottom + window.scrollY + 6) + 'px';
             tip.style.left = (rect.left + window.scrollX) + 'px';
-            el._tip = tip;
+            td._tip = tip;
         });
-        el.addEventListener('mouseleave', function() {
-            if (el._tip) { el._tip.remove(); el._tip = null; }
+        td.addEventListener('mouseleave', function() {
+            if (td._tip) { td._tip.remove(); td._tip = null; }
         });
     });
 });
 </script>
- 
+
 <style>
 /* ── Общий контейнер ── */
 .chess-card {
@@ -215,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function () {
     overflow: hidden;
     margin-bottom: 2rem;
 }
- 
+
 .chess-header {
     display: flex;
     align-items: center;
@@ -225,7 +265,7 @@ document.addEventListener('DOMContentLoaded', function () {
     color: white;
 }
 .chess-header h3 { margin: 0; font-size: 1.4rem; }
- 
+
 .export-buttons { display: flex; gap: .5rem; }
 .btn-export {
     padding: .4rem .9rem;
@@ -238,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function () {
 .btn-export:hover { opacity: .85; }
 .btn-excel { background: #1d6f42; color: #fff; }
 .btn-pdf   { background: #c0392b; color: #fff; }
- 
+
 /* ── Фильтры ── */
 .filters-bar { padding: 1rem 1.5rem; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
 .filter-row  { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
@@ -275,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
     background: white;
 }
 .btn-reset:hover { background: #f0f0f0; }
- 
+
 /* ── Инфо-полоса ── */
 .info-bar {
     display: flex;
@@ -286,13 +326,13 @@ document.addEventListener('DOMContentLoaded', function () {
     font-size: .88rem;
     color: #333;
 }
- 
+
 /* ── Прокрутка шахматки ── */
 .chess-scroll-wrap {
     overflow: auto;
     max-height: 72vh;
 }
- 
+
 /* ── Таблица ── */
 .chess-table {
     border-collapse: collapse;
@@ -300,8 +340,7 @@ document.addEventListener('DOMContentLoaded', function () {
     min-width: 100%;
     table-layout: fixed;
 }
- 
-/* Липкие элементы */
+    /* Липкие элементы */
 .chess-table thead { position: sticky; top: 0; z-index: 30; }
 .sticky-col {
     position: sticky;
@@ -311,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function () {
     box-shadow: 2px 0 5px rgba(0,0,0,.07);
 }
 .chess-table thead .sticky-col { z-index: 40; }
- 
+
 /* Заголовок "Номер" */
 .room-col-header {
     min-width: 160px;
@@ -323,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function () {
     border-bottom: 2px solid #ccc;
     text-align: left;
 }
- 
+
 /* Заголовки дат */
 .date-header {
     min-width: 80px;
@@ -339,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function () {
 .date-day { font-weight: 700; font-size: .95rem; line-height: 1.1; }
 .date-dow { font-size: .7rem; color: #666; }
 .date-mon { font-size: .68rem; color: #999; }
- 
+
 /* Строка этажа */
 .floor-header-row td {
     padding: .3rem .75rem;
@@ -351,11 +390,11 @@ document.addEventListener('DOMContentLoaded', function () {
     border-bottom: 1px solid #e9ecef;
 }
 .floor-label { position: sticky !important; left: 0; z-index: 15 !important; background: #eef0fb !important; }
- 
+
 /* Строка номера */
 .room-row { border-bottom: 1px solid #e9ecef; }
 .room-row:hover { background: #f0f4ff; }
- 
+
 /* Ячейка с инфо о комнате */
 .room-info-cell {
     min-width: 160px;
@@ -381,8 +420,8 @@ document.addEventListener('DOMContentLoaded', function () {
 .status-occupied    { background: #cce5ff; color: #004085; }
 .status-maintenance { background: #fff3cd; color: #856404; }
 .status-cleaning    { background: #f8d7da; color: #721c24; }
- 
-/* Ячейка дня */
+
+/* ── Базовая ячейка дня ── */
 .day-cell {
     min-width: 80px;
     width: 80px;
@@ -393,38 +432,54 @@ document.addEventListener('DOMContentLoaded', function () {
     position: relative;
 }
 .day-cell.weekend-day { background: #fffbf0; }
- 
-/* Блок бронирования */
-.booking-segment {
-    margin: 2px 1px;
-    padding: 3px 5px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: transform .15s, box-shadow .15s;
+
+/* ── Ячейка с бронированием (colspan) ── */
+.booking-cell {
+    padding: 0;
+    vertical-align: middle;
     overflow: hidden;
+    cursor: pointer;
 }
-.booking-segment:hover {
-    transform: scale(1.03);
-    box-shadow: 0 2px 8px rgba(0,0,0,.18);
-    z-index: 50;
-    position: relative;
+
+/* ── Блок внутри booking-cell ── */
+.booking-segment-span {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 5px 8px;
+    height: 62px;
+    box-sizing: border-box;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: filter .15s, box-shadow .15s;
+}
+.booking-cell:hover .booking-segment-span {
+    filter: brightness(0.95);
+    box-shadow: 0 2px 10px rgba(0,0,0,.18);
 }
 .seg-name {
     font-weight: 700;
-    font-size: .72rem;
+    font-size: .78rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 72px;
+}
+.seg-dates {
+    font-size: .65rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
 }
 .seg-status {
     font-size: .62rem;
-    color: #444;
+    color: #555;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin-top: 1px;
 }
- 
+
 /* Тултип */
 .chess-tooltip {
     position: absolute;
@@ -438,8 +493,7 @@ document.addEventListener('DOMContentLoaded', function () {
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0,0,0,.25);
 }
- 
-/* Легенда */
+    /* Легенда */
 .legend-bar {
     display: flex;
     flex-wrap: wrap;
@@ -453,7 +507,7 @@ document.addEventListener('DOMContentLoaded', function () {
 .legend-item  { display: flex; align-items: center; gap: .3rem; }
 .legend-dot   { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .legend-name  { color: #444; }
- 
+
 /* Статистика */
 .stats-bar {
     display: flex;
@@ -465,10 +519,10 @@ document.addEventListener('DOMContentLoaded', function () {
 .stat-item { display: flex; flex-direction: column; gap: .1rem; font-size: .82rem; }
 .stat-label { color: #777; font-size: .75rem; text-transform: uppercase; letter-spacing: .3px; }
 .stat-item strong { font-size: 1.1rem; color: #2c3e50; }
- 
+
 /* Пустое состояние */
 .empty-state { text-align: center; padding: 3rem; color: #999; font-size: 1rem; }
- 
+
 /* Адаптив */
 @media (max-width: 768px) {
     .filter-row { flex-direction: column; }

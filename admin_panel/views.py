@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 
 from service.models import ServiceBooking
 from .models import Room, RoomType, Booking
@@ -458,6 +459,7 @@ def get_available_rooms(check_in_date, check_out_date):
 
 
 def booking_list(request):
+    _auto_update_statuses()
     #Получаем параметры фильтрации
     status_filter = request.GET.get('status','')
     date_filter = request.GET.get('date','')
@@ -805,3 +807,26 @@ def booking_status_update(request, pk, status):
         except Exception as e:
             messages.error(request, f'Ошибка при обновлении статусы: {str(e)}')
     return redirect('booking_list')
+
+
+def _auto_update_statuses():
+    today = timezone.now().date()
+    expired = Booking.objects.filter(
+        check_out_date__lte = today,
+        status__in = ['confirmed', 'checked_in', 'awaiting_payment'],
+    ).select_related('room')
+
+    for booking in expired:
+        booking.status = 'checked_out'
+        booking.save(update_fields=['status'])
+
+        has_active = Booking.objects.filter(
+            room = booking.room,
+            check_in_date__lte = today,
+            check_out_date__gt = today,
+            status__in = ['confirmed', 'checked_in', 'awaiting_payment'],
+        ).exclude(id=booking.id).exists()
+
+        if not has_active:
+            booking.room.status = 'available'
+            booking.room.save(update_fields=['status'])

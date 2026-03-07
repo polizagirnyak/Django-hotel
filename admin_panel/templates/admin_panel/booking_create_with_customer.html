@@ -1634,53 +1634,80 @@
     }
 
     // Валидация формы
-    function validateForm() {
-        const customerOption = document.getElementById('customer_option').value;
-        const customerId = document.getElementById('selectedCustomerId').value;
+function validateForm() {
+    const customerOption = document.getElementById('customer_option').value;
+    const customerId = document.getElementById('selectedCustomerId').value;
 
-        // Обновляем скрытые поля
-        const hiddenCustomerOption = document.getElementById('hidden_customer_option');
-        const hiddenCustomerId = document.getElementById('hidden_customer_id');
+    // Обновляем скрытые поля
+    const hiddenCustomerOption = document.getElementById('hidden_customer_option');
+    const hiddenCustomerId = document.getElementById('hidden_customer_id');
 
-        if (hiddenCustomerOption) hiddenCustomerOption.value = customerOption;
-        if (hiddenCustomerId) hiddenCustomerId.value = customerId;
+    if (hiddenCustomerOption) hiddenCustomerOption.value = customerOption;
+    if (hiddenCustomerId) hiddenCustomerId.value = customerId;
 
-        // Проверяем номер комнаты
-        const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
-        if (!roomSelect || !roomSelect.value) {
-            alert('Пожалуйста, выберите номер для бронирования');
-            return false;
-        }
+    // Проверяем номер комнаты
+    const roomSelect = document.getElementById('{{ booking_form.room.id_for_label }}');
+    if (!roomSelect || !roomSelect.value) {
+        alert('Пожалуйста, выберите номер для бронирования');
+        return false;
+    }
 
-        // Для нового клиента проверяем обязательные поля
-        if (customerOption === 'new') {
-            const requiredFields = [
-                { id: '{{ customer_form.first_name.id_for_label }}', name: 'Имя' },
-                { id: '{{ customer_form.last_name.id_for_label }}', name: 'Фамилия' },
-                { id: '{{ customer_form.email.id_for_label }}', name: 'Email' },
-                { id: '{{ customer_form.phone.id_for_label }}', name: 'Телефон' },
-                { id: '{{ customer_form.passport_number.id_for_label }}', name: 'Паспорт' },
-                { id: '{{ customer_form.birthday.id_for_label }}', name: 'Дата рождения' }
-            ];
+    if (customerOption === 'new') {
+        // Проверяем обязательные поля
+        const requiredFields = [
+            { id: '{{ customer_form.first_name.id_for_label }}', name: 'Имя' },
+            { id: '{{ customer_form.last_name.id_for_label }}', name: 'Фамилия' },
+            { id: '{{ customer_form.email.id_for_label }}', name: 'Email' },
+            { id: '{{ customer_form.phone.id_for_label }}', name: 'Телефон' },
+            { id: '{{ customer_form.passport_number.id_for_label }}', name: 'Паспорт' },
+            { id: '{{ customer_form.birthday.id_for_label }}', name: 'Дата рождения' }
+        ];
 
-            for (const field of requiredFields) {
-                const element = document.getElementById(field.id);
-                if (element && !element.value.trim()) {
-                    alert(`Пожалуйста, заполните поле: ${field.name}`);
-                    element.focus();
-                    return false;
-                }
+        for (const field of requiredFields) {
+            const element = document.getElementById(field.id);
+            if (element && !element.value.trim()) {
+                alert(`Пожалуйста, заполните поле: ${field.name}`);
+                element.focus();
+                return false;
             }
         }
 
-        // Для существующего клиента проверяем, что выбран клиент
-        if (customerOption === 'existing' && !customerId) {
-            alert('Пожалуйста, выберите клиента из списка');
-            return false;
-        }
+        // * ГЛАВНОЕ ИСПРАВЛЕНИЕ *
+        // Копируем поля клиента из customerForm в bookingForm
+        const bookingForm = document.getElementById('bookingForm');
+        const customerFields = [
+            '{{ customer_form.first_name.html_name }}',
+            '{{ customer_form.last_name.html_name }}',
+            '{{ customer_form.email.html_name }}',
+            '{{ customer_form.phone.html_name }}',
+            '{{ customer_form.passport_number.html_name }}',
+            '{{ customer_form.birthday.html_name }}',
+        ];
 
-        return true;
+        customerFields.forEach(fieldName => {
+            const source = document.getElementById('id_' + fieldName);
+            if (source) {
+                // Удаляем старое скрытое поле если есть
+                const old = bookingForm.querySelector(`input[name="${fieldName}"]`);
+                if (old) old.remove();
+
+                // Добавляем скрытое поле с текущим значением
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = fieldName;
+                hidden.value = source.value;
+                bookingForm.appendChild(hidden);
+            }
+        });
     }
+
+    if (customerOption === 'existing' && !customerId) {
+        alert('Пожалуйста, выберите клиента из списка');
+        return false;
+    }
+
+    return true;
+}
 
     // Обновить тип клиента
     function updateCustomerType() {

@@ -1,4 +1,3 @@
-from http.cookiejar import DAYS
 
 from django.shortcuts import render
 from django.db.models import Q
@@ -18,6 +17,7 @@ import io
 
 from .models import Booking, Room, RoomType, Customer
 
+from .views import _auto_update_statuses
 
 CUSTOMER_COLORS = [
     ('#E74C3C', '#C0392B'),  # красный
@@ -48,6 +48,7 @@ STATUS_SHORT = {
 class ChessTableView(View):
 
     def get(self, request):
+        _auto_update_statuses()
         today = datetime.now().date()
         start_str = request.GET.get('start_date')
         end_str = request.GET.get('end_date')
@@ -111,30 +112,44 @@ class ChessTableView(View):
                 color_idx += 1
 
         #Передаем список бронирований в шаблон
-        bookings_list = []
+        from collections import defaultdict
+        s_map = defaultdict(dict)
+        booking_spans = defaultdict(dict)
         for b in bookings:
             room_id = b.room.id
-            light,dark = customer_colors[b.customer.id]
-            #Определяем пересечение бронирования с диапазоном
+            light, dark = customer_colors[b.customer.id]
             s_start = max(b.check_in_date, start_date)
             s_end = min(b.check_out_date - timedelta(days=1), end_date)
+
+            visible_dates = []
             cur = s_start
             while cur <= s_end:
-                bookings_list.append({
-                    'room_id': room_id,
-                    'date_str': cur.strftime('%Y-%m-%d'),
-                    'customer_name': b.customer.get_full_name(),
-                    'customer_last_name': b.customer.last_name,
-                    'color': light,
-                    'color_dark': dark,
-                    'check_in': b.check_in_date,
-                    'check_out': b.check_out_date,
-                    'status_display': b.get_status_display(),
-                    'status_short': STATUS_SHORT.get(b.status, b.status),
-                    'total_price': b.total_price,
-                    'booking_id': b.id
-                })
+                visible_dates.append(cur)
                 cur += timedelta(days=1)
+
+            if not visible_dates:
+                continue
+
+            booking_dict = {
+                'room_id': room_id,
+                'customer_name': b.customer.get_full_name(),
+                'customer_last_name': b.customer.last_name,
+                'customer_first_name': b.customer.first_name,
+                'color': light,
+                'color_dark': dark,
+                'check_in': b.check_in_date,
+                'check_out': b.check_out_date,
+                'status_display': b.get_status_display(),
+                'status_short': STATUS_SHORT.get(b.status, b.status),
+                'total_price': b.total_price,
+                'booking_id': b.id
+            }
+
+            for d in visible_dates:
+                s_map[room_id][d.strftime('%Y-%m-%d')] = booking_dict
+
+            first_date_str = visible_dates[0].strftime('%Y-%m-%d')
+            booking_spans[room_id][first_date_str] = len(visible_dates)
 
         #Легенда для шахматки
         seen_customers = {}
@@ -177,7 +192,8 @@ class ChessTableView(View):
             'rooms': rooms,
             'date_range': date_range,
             'date_range_rich': date_range_rich,
-            'bookings_list': bookings_list,
+            'schedule_map': dict(s_map),
+            'booking_spans': dict(booking_spans),
             'start_date': start_date,
             'end_date': end_date,
             'room_types': room_types,
