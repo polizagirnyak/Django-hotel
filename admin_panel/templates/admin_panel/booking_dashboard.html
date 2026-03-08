@@ -142,16 +142,24 @@
                         </div>
                         <div class="booking-actions">
                             {% if booking.status == 'awaiting_payment' %}
-                            <a href="{% url 'booking_status_update' booking.pk 'confirmed' %}" class="btn-small btn-success">
-                                Подтвердить
-                            </a>
+                            <form method="post" action="{% url 'booking_status_update' booking.pk 'confirmed' %}" style="display:inline";>
+                                {% csrf_token %}
+                                <button type="submit" class="btn-small btn-success">
+                                    Подтвердить
+                                </button>
+                            </form>
                             {% endif %}
+
                             {% if booking.check_in_date == today %}
-                            <a href="{% url 'booking_status_update' booking.pk 'checked_in' %}" class="btn-small btn-primary">
-                                Заселить
-                            </a>
+                            <form method="post" action="{% url 'booking_status_update' booking.pk 'checked_in' %}" style="display:inline";>
+                                {% csrf_token %}
+                                <button type="submit" class="btn-small btn-primary">
+                                    Заселить
+                                </button>
+                            </form>
                             {% endif %}
-                            <a href="{% url 'booking_edit' booking.pk %}" class="btn-small btn-secondary">
+
+                            <a href="{% url 'booking_edit' booking.pk %}?next={% url 'booking_list' %}" class="btn-small btn-secondary">
                                 Редактировать
                             </a>
                         </div>

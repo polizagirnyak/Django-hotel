@@ -16,6 +16,7 @@
                 {% comment %}{% if user.is_authenticated and user.is_staff %}{% endcomment %}
                 <a class="nav-link" href="#">Панель управления</a>
                 <a class="nav-link" href="{% url 'rooms_dashboard' %}">Комнаты</a>
+                <a class="nav-link" href="{% url 'chess_table' %}">Шахматка</a>
                 <a class="nav-link" href="{% url 'booking_dashboard' %}">🔑Бронирования</a>
                 <a class="nav-link" href="{% url 'customer_list' %}">👥Клиенты</a>
                 <a class="nav-link" href="{% url 'services_dashboard' %}">💆Услуги отеля</a>

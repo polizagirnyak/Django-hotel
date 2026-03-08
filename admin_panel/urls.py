@@ -40,5 +40,5 @@ urlpatterns = [
     path('bookings/search-customers/', search_customers, name='search_customers'),
     path('bookings/get-customer/<int:customer_id>/', get_customer_details, name='get_customer_details'),
 
-    path('chess_table/', ChessTableView.as_view(), name='chess_table'),
+    path('bookings/chess_table/', ChessTableView.as_view(), name='chess_table'),
 ]

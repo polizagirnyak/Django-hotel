@@ -130,6 +130,7 @@
                                 colspan="{{ span }}"
                                 data-room="{{ room.id }}"
                                 data-date="{{ date_str }}"
+                                data-booking-id="{{ cell.booking_id }}"
                                 title="{{ cell.customer_name }} | {{ cell.check_in|date:'d.m.Y' }} — {{ cell.check_out|date:'d.m.Y' }} | {{ cell.status_display }}">
                                 <div class="booking-segment-span"
                                      style="background: linear-gradient(135deg, {{ cell.color }}33, {{ cell.color }}18); border-left: 4px solid {{ cell.color }}; border-right: 2px solid {{ cell.color }}55;">
@@ -243,6 +244,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (td._tip) { td._tip.remove(); td._tip = null; }
         });
     });
+    document.querySelectorAll('.booking-cell').forEach(function(td) {
+        td.addEventListener('click', function() {
+            var bookingId = td.getAttribute('data-booking-id');
+            if (bookingId) {
+                window.location.href = '/administrator/bookings/' + bookingId + '/edit/?next=/administrator/bookings/chess_table/';
+            }
+        })
+    })
 });
 </script>
 

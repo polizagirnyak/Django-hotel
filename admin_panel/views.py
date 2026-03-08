@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 
 from service.models import ServiceBooking
@@ -554,7 +555,8 @@ def booking_list(request):
 
 def booking_edit(request, pk):
     #Редактирование существующего бронирования
-    booking = get_object_or_404(Booking, pk = pk )
+    booking = get_object_or_404(Booking, pk = pk)
+    next_url = request.GET.get('next') or request.POST.get('next') or reverse('booking_list')
     old_status = booking.status
     old_room = booking.room
 
@@ -609,14 +611,15 @@ def booking_edit(request, pk):
                         #Новую комнату помечаем как занятую
                     updated_booking.save()
                     messages.success(request, 'Бронироввание успешно обновлено')
-                    return redirect('booking_list')
+                    return redirect(next_url)
             except Exception as e:
                 messages.error(request, f'Ошибка при обновлении бонирования {str(e)}')
     else:
         form = BookingEditForm(instance=booking)
     context = {
         'form': form,
-        'booking': booking
+        'booking': booking,
+        'next_url': next_url,
     }
     return render(request, 'admin_panel/booking_edit.html', context=context)
 
@@ -676,6 +679,17 @@ def booking_delete(request, pk):
 #####КЛИЕНТЫ#####
 def customer_list(request):
     search_query = request.GET.get('search', '')
+    sort_by = request.GET.get('sort', '-last_booking_date')
+
+    ALLOWED_SORT_FIELDS = {
+        '-last_booking_date', 'last_booking_date',
+        '-booking_count', 'booking_count',
+        '-total_spent', 'total_spent',
+        '-last_name', 'last_name',
+    }
+    if sort_by not in ALLOWED_SORT_FIELDS:
+        sort_by = '-last_booking_date'
+
     customers = Customer.objects.annotate(
         booking_count = Count('booking'),
         total_spent = Sum('booking__total_price'),
@@ -692,6 +706,9 @@ def customer_list(request):
             Q(passport_number__icontains=search_query)
         )
 
+    #Сортировка
+    customers = customers.order_by(sort_by)
+
     #Статистика
     total_customers = customers.count()
     active_customers = Customer.objects.filter(
@@ -703,7 +720,8 @@ def customer_list(request):
         'search_query': search_query,
         'total_customers': total_customers,
         'active_customers': active_customers,
-        'total_bookings': total_bookings
+        'total_bookings': total_bookings,
+        'sort_by': sort_by,
     }
     return render(request, template_name='admin_panel/customer_list.html', context=context)
 

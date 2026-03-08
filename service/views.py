@@ -1,6 +1,7 @@
 import json
 
 from django.core.exceptions import ValidationError
+from django.db import models
 from django.http import JsonResponse
 from django.utils import timezone
 from django.shortcuts import render, get_object_or_404, redirect
@@ -179,6 +180,7 @@ def service_delete(request, pk):
 @login_required
 @staff_required
 def service_booking_list(request):
+    _auto_update_service_booking_statuses()
     bookings = ServiceBooking.objects.select_related('customer', 'service', 'created_by').all()
     #фильтрация
     date_filter = request.GET.get('date')
@@ -407,6 +409,7 @@ def service_booking_change_status(request, pk):
 @login_required
 @staff_required
 def customer_service_bookings(request, customer_id):
+    _auto_update_service_booking_statuses()
     customer = get_object_or_404(Customer, pk = customer_id)
     bookings = ServiceBooking.objects.filter(customer=customer).select_related('service').order_by('-booking_date', '-start_time')
 
@@ -505,6 +508,20 @@ def check_service_availability(request):
 
 
 
+def _auto_update_service_booking_statuses():
+    now = timezone.now()
+    today = now.date()
+    current_time = now.time()
+
+    expired = ServiceBooking.objects.filter(
+        status__in = ['pending', 'confirmed', 'in_progress'],
+    ).filter(
+        #Дата в прошлом
+        models.Q(booking_date__lt = today) |
+        #Или сегодня, но время окончания прошло
+        models.Q(booking_date = today, end_time__lte = current_time)
+    )
+    expired.update(status = 'completed')
 
 
 

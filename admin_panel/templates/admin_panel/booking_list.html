@@ -230,7 +230,7 @@
                                 {% endif %}
                             </div>
                             <div class="main-actions">
-                                <a href="{% url 'booking_edit' booking.pk %}" class="btn-action btn-edit" title="Редактировать">✏️</a>
+                                <a href="{% url 'booking_edit' booking.pk %}?next={% url 'booking_list' %}" class="btn-action btn-edit" title="Редактировать">✏️</a>
                                 <a href="{% url 'booking_delete' booking.pk %}" class="btn-action btn-delete" title="Удалить">🗑️</a>
                             </div>
                         </div>
