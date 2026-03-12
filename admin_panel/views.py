@@ -2,7 +2,7 @@ from datetime import date, timedelta, datetime
 
 from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -12,6 +12,16 @@ from .models import Room, RoomType, Booking
 from .forms import RoomForm, RoomTypeForm, CustomerForm, BookingForm, BookingEditForm, SearchForm
 from .models import Room, RoomType, Customer
 from django.contrib import messages
+
+
+import io
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import Spacer, HRFlowable, Paragraph, Table, TableStyle, SimpleDocTemplate
+
+from .templatetags.custom_filters import register
 
 
 def index(request):
@@ -848,3 +858,113 @@ def _auto_update_statuses():
         if not has_active:
             booking.room.status = 'available'
             booking.room.save(update_fields=['status'])
+
+
+
+
+#Генерация ПДФ
+def booking_pdf(request, booking_id):
+    try:
+        booking = Booking.objects.select_related(
+            'customer', 'room__room_type'
+        ).get(id=booking_id)
+    except Booking.DoesNotExist:
+        raise Http404
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize = A4,
+        rightMargin = 2*cm,
+        leftMargin = 2*cm,
+        topMargin = 2*cm,
+        bottomMargin = 2*cm,
+    )
+
+    #regular, bold = register_cyrillic_fonts()
+
+    #Стили
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        fontName=bold,
+        fontSize=22,
+        spaceAfter=24,
+        textColor=colors.HexColor('#2c3e50'),
+    )
+
+    #Подзаголовок
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        fontName=regular,
+        fontSize=11,
+        spaceAfter=20,
+        spaceBefore=8,
+        textColor=colors.HexColor('#7f8c8d'),
+    )
+
+    section_style = ParagraphStyle(
+        'Section',
+        fontName=bold,
+        fontSize=12,
+        spaceAfter=6,
+        spaceBefore=16,
+        textColor=colors.HexColor('#667eea'),
+    )
+
+    footer_style = ParagraphStyle(
+        'Footer',
+        fontName=regular,
+        fontSize=8,
+        textColor=colors.grey
+    )
+
+    store = []
+
+    #Заголовок
+    store.append(Paragraph(text='Подтверждение бронирования', style=title_style))
+    store.append(Paragraph(text=f'Бронирование № {booking.id}', style=subtitle_style))
+    store.append(HRFlowable(width='100%',thickness=2, color=colors.HexColor('#667eea')))
+    store.append(Spacer(1, 0.4*cm))
+
+    #Данные клиента
+    store.append(Paragraph('Данные клиента', section_style))
+    customer = booking.customer
+    customer_data = [
+        ['ФИО:', customer.get_full_name()],
+        ['Телефон:', getattr(customer,'phone', '-')],
+        ['Email:', getattr(customer, 'email', '-')],
+    ]
+    customer_table = Table(customer_data, colWidths=[4*cm, 13*cm])
+    customer_table.setStyle(TableStyle([
+        ('FONTNAME',    (0, 0), (-1, -1), regular),
+        ('FONTNAME',    (0, 0), (0, -1), bold),
+        ('FONTSIZE',    (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR',    (0, 0), (0, -1), colors.HexColor('#555555')),
+        ('BOTTOMPADDING',    (0, 0), (-1, -1), 5),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ]
+    ))
+    store.append(customer_table)
+
+    #Детали бронирования
+    store.append(Paragraph('Детали бронирования', section_style))
+    nights = (booking.check_out_date - booking.check_in_date).days
+    booking_data = [
+        ['Номер комнаты:', str(booking.room.room_number)],
+        ['Тип номера:', booking.room.room_type.name],
+        ['Дата заезда:', booking.check_in_date.strftime('%d.%m.%Y')],
+        ['Дата выезда:', booking.check_out_date.strftime('%d.%m.%Y')],
+        ['Количество ночей:', str(nights)],
+        ['Цена за ночь:', f'{booking.room.room_type.price_per_night} руб.'],
+        ['Статус:', booking.get_status_display()],
+    ]
+    booking_table = Table(booking_data, colWidths=[4*cm, 13*cm])
+    booking_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), regular),
+        ('FONTNAME', (0, 0), (0, -1), bold),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#555555')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white], colors.HexColor('#f8f9fa')),
+    ]))
+    store.append(booking_table)
