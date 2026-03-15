@@ -4,7 +4,8 @@ from .views import (room_edit, room_type_edit, room_list,
                     room_type_create, room_type_delete, room_type_list,
                     booking_create_with_customer, booking_list, booking_edit,
                     booking_dashboard, booking_delete, index, search_customers, get_customer_details)
-from .views import (customer_edit, customer_list, customer_detail, booking_status_update)
+from .views import (customer_edit, customer_list, customer_detail, booking_status_update,
+                    booking_pdf)
 from service.views import customer_service_bookings, customer_service_booking_add
 from .chess_table import ChessTableView
 
@@ -41,4 +42,5 @@ urlpatterns = [
     path('bookings/get-customer/<int:customer_id>/', get_customer_details, name='get_customer_details'),
 
     path('bookings/chess_table/', ChessTableView.as_view(), name='chess_table'),
+    path('bookings/<int:booking_id>/pdf/', booking_pdf, name='booking_pdf')
 ]

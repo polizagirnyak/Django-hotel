@@ -2,7 +2,7 @@ from datetime import date, timedelta, datetime
 
 from django.db import transaction
 from django.db.models import Count, Q, Sum, Max
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, Http404, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -21,7 +21,8 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Spacer, HRFlowable, Paragraph, Table, TableStyle, SimpleDocTemplate
 
-from .templatetags.custom_filters import register
+
+from.pdf_fonts import register_cyrillic_fonts
 
 
 def index(request):
@@ -380,7 +381,7 @@ def booking_create_with_customer(request):
                             request,
                             f'Бронирование успешно создано! Стоимость: {total_price} руб.'
                         )
-                        return redirect('booking_list')
+                        return redirect(f"{reverse('booking_list')}?open_pdf={booking.id}")
 
                 except Exception as e:
                     messages.error(request, f'Ошибка при создании бронирования: {str(e)}')
@@ -621,7 +622,7 @@ def booking_edit(request, pk):
                         #Новую комнату помечаем как занятую
                     updated_booking.save()
                     messages.success(request, 'Бронироввание успешно обновлено')
-                    return redirect(next_url)
+                    return redirect(f"{reverse('booking_list')}?open_pdf={booking.id}")
             except Exception as e:
                 messages.error(request, f'Ошибка при обновлении бонирования {str(e)}')
     else:
@@ -880,7 +881,7 @@ def booking_pdf(request, booking_id):
         bottomMargin = 2*cm,
     )
 
-    #regular, bold = register_cyrillic_fonts()
+    regular, bold = register_cyrillic_fonts()
 
     #Стили
     title_style = ParagraphStyle(
@@ -917,16 +918,16 @@ def booking_pdf(request, booking_id):
         textColor=colors.grey
     )
 
-    store = []
+    story = []
 
     #Заголовок
-    store.append(Paragraph(text='Подтверждение бронирования', style=title_style))
-    store.append(Paragraph(text=f'Бронирование № {booking.id}', style=subtitle_style))
-    store.append(HRFlowable(width='100%',thickness=2, color=colors.HexColor('#667eea')))
-    store.append(Spacer(1, 0.4*cm))
+    story.append(Paragraph(text='Подтверждение бронирования', style=title_style))
+    story.append(Paragraph(text=f'Бронирование № {booking.id}', style=subtitle_style))
+    story.append(HRFlowable(width='100%',thickness=2, color=colors.HexColor('#667eea')))
+    story.append(Spacer(1, 0.4*cm))
 
     #Данные клиента
-    store.append(Paragraph('Данные клиента', section_style))
+    story.append(Paragraph('Данные клиента', section_style))
     customer = booking.customer
     customer_data = [
         ['ФИО:', customer.get_full_name()],
@@ -943,10 +944,10 @@ def booking_pdf(request, booking_id):
         ('TOPPADDING',    (0, 0), (-1, -1), 5),
         ]
     ))
-    store.append(customer_table)
+    story.append(customer_table)
 
     #Детали бронирования
-    store.append(Paragraph('Детали бронирования', section_style))
+    story.append(Paragraph('Детали бронирования', section_style))
     nights = (booking.check_out_date - booking.check_in_date).days
     booking_data = [
         ['Номер комнаты:', str(booking.room.room_number)],
@@ -958,13 +959,59 @@ def booking_pdf(request, booking_id):
         ['Статус:', booking.get_status_display()],
     ]
     booking_table = Table(booking_data, colWidths=[4*cm, 13*cm])
-    booking_table.setStyle(TableStyle([
+    # booking_table.setStyle(TableStyle([
+    #     ('FONTNAME', (0, 0), (-1, -1), regular),
+    #     ('FONTNAME', (0, 0), (0, -1), bold),
+    #     ('FONTSIZE', (0, 0), (-1, -1), 10),
+    #     ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#555555')),
+    #     ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    #     ('TOPPADDING', (0, 0), (-1, -1), 5),
+    #     #('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white], colors.HexColor('#f8f9fa')),
+    # ]))
+    row_styles = [
         ('FONTNAME', (0, 0), (-1, -1), regular),
         ('FONTNAME', (0, 0), (0, -1), bold),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#555555')),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white], colors.HexColor('#f8f9fa')),
+    ]
+    for i in range(len(booking_data)):
+        bg = colors.white if i % 2 == 0 else colors.HexColor('#f8f9fa')
+        row_styles.append(('BACKGROUND', (0, i), (-1, i), bg))
+    booking_table.setStyle(TableStyle(row_styles))
+    story.append(booking_table)
+
+    #Итого
+    story.append(Spacer(1, 0.5*cm))
+    story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#dee2e6')))
+    story.append(Spacer(1, 0.3 * cm))
+
+    total_data = [['Итого к оплате:', f'{booking.total_price} руб.']]
+    total_table = Table(total_data, colWidths=[14*cm, 3*cm])
+    total_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), bold),
+        ('FONTSIZE', (0, 0), (-1, -1), 13),
+        ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor('#27ae60')),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
     ]))
-    store.append(booking_table)
+    story.append(total_table)
+
+    #Футтер
+    story.append(Spacer(1, 1.5*cm))
+    story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#dee2e6')))
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(Paragraph(
+        f'Документ сформирован: {datetime.now().strftime('%d.%m.%Y %H:%M')}',
+        footer_style
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    file_name = f'booking_{booking.id}_{customer.last_name}.pdf'
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline;filename="{file_name}"'
+    return response
+

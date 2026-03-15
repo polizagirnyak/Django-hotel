@@ -378,5 +378,29 @@
         .table-header h1 { font-size: 1.75rem; }
     }
 </style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const params = new URLSearchParams(window.location.search);
+    const pdfId = params.get('open_pdf');
+
+    if (pdfId) {
+        // Сначала определяем url, потом используем
+        const url = new URL(window.location);
+        url.searchParams.delete('open_pdf');
+        window.history.replaceState({}, '', url);
+
+        setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = /administrator/bookings/${pdfId}/pdf/;  // ← обратные кавычки
+            a.target = '_blank';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }, 500);
+    }
+});
+</script>
 {% endblock %}
+
  
