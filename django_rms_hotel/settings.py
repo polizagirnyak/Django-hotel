@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'admin_panel',
     'users',
     'service',
+    'analytics',
 ]
 
 MIDDLEWARE = [

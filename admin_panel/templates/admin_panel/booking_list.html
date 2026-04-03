@@ -230,6 +230,7 @@
                                 {% endif %}
                             </div>
                             <div class="main-actions">
+                                <a href="/administrator/bookings/{{ booking.id }}/pdf/" class="btn-action btn-pdf" title="Скачать PDF">📄</a>
                                 <a href="{% url 'booking_edit' booking.pk %}?next={% url 'booking_list' %}" class="btn-action btn-edit" title="Редактировать">✏️</a>
                                 <a href="{% url 'booking_delete' booking.pk %}" class="btn-action btn-delete" title="Удалить">🗑️</a>
                             </div>
@@ -336,7 +337,7 @@
 
     .actions-cell { min-width: 150px; }
     .action-buttons { display: flex; flex-direction: column; gap: 0.5rem; }
-    .status-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+    .status-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: center; }
     .main-actions { display: flex; gap: 0.25rem; justify-content: center; }
     .action-form { display: inline; }
     .btn-status, .btn-action { padding: 0.4rem; border: none; border-radius: 4px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; }
@@ -346,6 +347,7 @@
     .btn-cancel { background: #ffebee; color: #c62828; } .btn-cancel:hover { background: #c62828; color: white; }
     .btn-edit { background: #e3f2fd; color: #1976d2; } .btn-edit:hover { background: #1976d2; color: white; }
     .btn-delete { background: #ffebee; color: #c62828; } .btn-delete:hover { background: #c62828; color: white; }
+    .btn-pdf { background: #e0f2f1; color: #00897b; } .btn-pdf:hover { background: #00897b; color: white; } /* Стиль PDF */
 
     .no-bookings { text-align: center; padding: 4rem 2rem !important; }
     .empty-state { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
@@ -391,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         setTimeout(() => {
             const a = document.createElement('a');
-            a.href = /administrator/bookings/${pdfId}/pdf/;  // ← обратные кавычки
+            a.href = `/administrator/bookings/${pdfId}/pdf/`;
             a.target = '_blank';
             a.rel = 'noopener';
             document.body.appendChild(a);
@@ -403,4 +405,3 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 {% endblock %}
 
- 

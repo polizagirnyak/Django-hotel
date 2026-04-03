@@ -381,7 +381,7 @@ def booking_create_with_customer(request):
                             request,
                             f'Бронирование успешно создано! Стоимость: {total_price} руб.'
                         )
-                        return redirect(f"{reverse('booking_list')}?open_pdf={booking.id}")
+                        return redirect('booking_list')
 
                 except Exception as e:
                     messages.error(request, f'Ошибка при создании бронирования: {str(e)}')
@@ -622,7 +622,7 @@ def booking_edit(request, pk):
                         #Новую комнату помечаем как занятую
                     updated_booking.save()
                     messages.success(request, 'Бронироввание успешно обновлено')
-                    return redirect(f"{reverse('booking_list')}?open_pdf={booking.id}")
+                    return redirect('booking_list')
             except Exception as e:
                 messages.error(request, f'Ошибка при обновлении бонирования {str(e)}')
     else:
@@ -1014,4 +1014,3 @@ def booking_pdf(request, booking_id):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline;filename="{file_name}"'
     return response
-

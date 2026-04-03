@@ -85,39 +85,31 @@
     </div>
 
     <!-- Основные действия -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Быстрые действия</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <a href="{% url 'service_categories' %}" class="btn btn-primary btn-block">
-                                <i class="fas fa-list"></i> Категории услуг
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="{% url 'service_list' %}" class="btn btn-success btn-block">
-                                <i class="fas fa-spa"></i> Все услуги
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="{% url 'service_booking_list' %}" class="btn btn-info btn-block">
-                                <i class="fas fa-calendar-alt"></i> Записи
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="{% url 'service_add' %}" class="btn btn-warning btn-block">
-                                <i class="fas fa-plus"></i> Добавить услугу
-                            </a>
-                        </div>
-                    </div>
-                </div>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Быстрые действия</h6>
             </div>
+            <div class="card-body">
+<div class="d-flex gap-3">
+    <a href="{% url 'service_categories' %}" class="btn btn-primary flex-fill quick-btn d-flex align-items-center justify-content-center">
+        <i class="fas fa-list mr-2"></i> Категории услуг
+    </a>
+    <a href="{% url 'service_list' %}" class="btn btn-success flex-fill quick-btn d-flex align-items-center justify-content-center">
+        <i class="fas fa-spa mr-2"></i> Все услуги
+    </a>
+    <a href="{% url 'service_booking_list' %}" class="btn btn-info flex-fill quick-btn d-flex align-items-center justify-content-center">
+        <i class="fas fa-calendar-alt mr-2"></i> Записи
+    </a>
+    <a href="{% url 'service_add' %}" class="btn btn-warning flex-fill quick-btn d-flex align-items-center justify-content-center">
+        <i class="fas fa-plus mr-2"></i> Добавить услугу
+    </a>
+</div>
+</div>
         </div>
     </div>
+</div>
 
     <!-- Ближайшие записи -->
     <div class="row">
@@ -154,11 +146,11 @@
                                         </a>
                                     </td>
                                     <td>{{ booking.service.name }}</td>
-                                    <td>
-                                        <span class="badge badge-{{ booking.status|yesno:'success,secondary,warning,danger,info' }}">
-                                            {{ booking.get_status_display }}
-                                        </span>
-                                    </td>
+<td>
+    <span class="badge badge-{{ booking.status|yesno:'success,secondary,warning,danger,info' }}" style="color: #000; font-family: inherit; font-size: inherit; font-weight: normal; padding-left: 0;">
+        {{ booking.get_status_display }}
+    </span>
+</td>
                                     <td>
                                         <a href="{% url 'service_booking_edit' booking.id %}"
                                            class="btn btn-sm btn-info">Редактировать</a>
