@@ -1,0 +1,352 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block content %}
+<div class="an-container">
+
+    <div class="an-header">
+        <h1>Дашборд</h1>
+       {%comment%} <a href="{% url 'analytics_report' %}" class="btn-outline-link">Детальный отчёт →</a> {%endcomment%}
+    </div>
+
+    <!-- Фильтр периода -->
+    <div class="filter-card">
+        <form method="get" id="filterForm">
+            <div class="filter-top">
+                <div class="preset-group">
+                    <a href="?preset=month" class="preset-btn {% if preset == 'month' %}active{% endif %}">Текущий месяц</a>
+                    <a href="?preset=prev_month" class="preset-btn {% if preset == 'prev_month' %}active{% endif %}">Прошлый месяц</a>
+                    <a href="?preset=quarter" class="preset-btn {% if preset == 'quarter' %}active{% endif %}">Текущий квартал</a>
+                    <a href="?preset=prev_quarter" class="preset-btn {% if preset == 'prev_quarter' %}active{% endif %}">Прошлый квартал</a>
+                    <a href="?preset=year" class="preset-btn {% if preset == 'year' %}active{% endif %}">С начала года</a>
+                </div>
+            </div>
+            <div class="custom-period">
+                <input type="date" name="start_date" value="{{ start_date }}" class="date-input">
+                <span class="date-sep">—</span>
+                <input type="date" name="end_date" value="{{ end_date }}" class="date-input">
+                <button type="submit" class="btn-apply">Применить</button>
+                <span class="period-label">{{ period_label }}</span>
+            </div>
+        </form>
+    </div>
+
+    <!-- KPI-карточки -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Загрузка</div>
+            <div class="kpi-value">{{ cur_occ_pct }}%</div>
+            <div class="kpi-diff {% if occ_diff >= 0 %}pos{% else %}neg{% endif %}">
+                {% if occ_diff >= 0 %}+{% endif %}{{ occ_diff }} пп к прошлому месяцу
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Выручка</div>
+            <div class="kpi-value">{{ cur_revenue|floatformat:0 }} ₽</div>
+            {% if revenue_diff is not None %}
+            <div class="kpi-diff {% if revenue_diff >= 0 %}pos{% else %}neg{% endif %}">
+                {% if revenue_diff >= 0 %}+{% endif %}{{ revenue_diff }}% к прошлому месяцу
+            </div>
+            {% endif %}
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Средний чек (ADR)</div>
+            <div class="kpi-value">{{ cur_adr }} ₽</div>
+            {% if adr_diff is not None %}
+            <div class="kpi-diff {% if adr_diff >= 0 %}pos{% else %}neg{% endif %}">
+                {% if adr_diff >= 0 %}+{% endif %}{{ adr_diff }}% к прошлому месяцу
+            </div>
+            {% endif %}
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">RevPAR</div>
+            <div class="kpi-value">{{ cur_revpar }} ₽</div>
+            {% if revpar_diff is not None %}
+            <div class="kpi-diff {% if revpar_diff >= 0 %}pos{% else %}neg{% endif %}">
+                {% if revpar_diff >= 0 %}+{% endif %}{{ revpar_diff }}% к прошлому месяцу
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- График загрузки по дням -->
+    <div class="chart-card" style="margin-bottom:1rem">
+        <div class="chart-title">Загрузка по дням ({{ period_label }})</div>
+        <div class="chart-legend">
+            <span class="legend-dot" style="background:rgba(99,179,237,0.8)"></span> до 70%
+            <span class="legend-dot ml" style="background:rgba(102,126,234,0.8)"></span> 70–85%
+            <span class="legend-dot ml" style="background:rgba(118,75,162,0.85)"></span> 85%+
+        </div>
+        <div class="chart-wrap" style="height:220px">
+            <canvas id="dailyOccChart"></canvas>
+        </div>
+    </div>
+    <!-- Распределение по типам номеров -->
+    <div class="chart-card" style="margin-bottom:1rem">
+        <div class="chart-title">Распределение по типам номеров</div>
+        <div class="donut-row">
+            <div class="donut-wrap">
+                <canvas id="donutChart"></canvas>
+                <div class="donut-center">{{ cur_occ_pct }}%</div>
+            </div>
+            <div class="donut-legend" id="donutLegend"></div>
+        </div>
+    </div>
+
+    <!-- Нижние секции -->
+    <div class="bottom-grid">
+
+        <!-- Топ источников — заглушка -->
+        <div class="info-card">
+            <div class="info-title">Статусы бронирований</div>
+            <div class="status-list">
+                <div class="status-row">
+                    <span class="status-name">Подтверждено</span>
+                    <span class="status-badge blue">{{ status_confirmed }}</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-name">Заселены сейчас</span>
+                    <span class="status-badge green">{{ status_checked_in }}</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-name">Ожидает оплаты</span>
+                    <span class="status-badge orange">{{ status_awaiting }}</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-name">Отменено</span>
+                    <span class="status-badge red">{{ status_cancelled }}</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-name">Выселены (месяц)</span>
+                    <span class="status-badge gray">{{ checked_out_month }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <div class="info-title">Заезды / выезды на неделе</div>
+            <div class="ops-list">
+                <div class="ops-row">
+                    <span>Сегодня заезды</span>
+                    <strong>{{ ci_today }}</strong>
+                </div>
+                <div class="ops-row">
+                    <span>Сегодня выезды</span>
+                    <strong>{{ co_today }}</strong>
+                </div>
+                <div class="ops-row">
+                    <span>Завтра заезды</span>
+                    <strong>{{ ci_tomorrow }}</strong>
+                </div>
+                <div class="ops-row border-top">
+                    <span>Всего на неделю</span>
+                    <strong class="accent">{{ total_week }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <div class="info-title">Услуги (месяц)</div>
+            <div class="ops-list">
+                <div class="ops-row">
+                    <span>Всего заказов</span>
+                    <strong>{{ svc_count }}</strong>
+                </div>
+                <div class="ops-row">
+                    <span>Выручка</span>
+                    <strong>{{ svc_revenue|floatformat:0 }} ₽</strong>
+                </div>
+                <div class="ops-row">
+                    <span>Самая популярная</span>
+                    <strong class="accent">{{ popular_name }}</strong>
+                </div>
+                <div class="ops-row border-top">
+                    <span>В ожидании</span>
+                    <strong class="orange">{{ svc_pending }}</strong>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const dailyOcc = {{ daily_occ_json|safe }};
+const donutLabels = {{ donut_labels_json|safe }};
+const donutData = {{ donut_data_json|safe }};
+const donutColors = {{ donut_colors_json|safe }};
+    // График загрузки по дням
+new Chart(document.getElementById('dailyOccChart'), {
+    type: 'bar',
+    data: {
+        labels: dailyOcc.map(d => d.label),
+        datasets: [{
+            data: dailyOcc.map(d => d.pct),
+            backgroundColor: dailyOcc.map(d => d.color),
+            borderRadius: 4,
+            borderSkipped: false,
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: ctx => ctx.parsed.y + '%' }
+        }},
+        scales: {
+            y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } },
+            x: { ticks: { maxRotation: 45, font: { size: 11 } } }
+        }
+    }
+});
+
+// Donut
+new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: {
+        labels: donutLabels,
+        datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 2 }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '72%',
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ctx.label + ' — ' + ctx.parsed + '%' } }
+        }
+    }
+});
+
+// Donut legend
+const legend = document.getElementById('donutLegend');
+donutLabels.forEach((label, i) => {
+    legend.innerHTML += <div class="dl-row"><span class="dl-dot" style="background:${donutColors[i]}"></span>${label} — ${donutData[i]}%</div>;
+});
+</script>
+
+<style>
+.an-container { max-width: 1300px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+.an-header {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.an-header h1 {
+    font-size: 1.8rem; font-weight: 700; margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.an-period { color: #7f8c8d; font-size: 1rem; }
+.btn-outline-link {
+    margin-left: auto; color: #667eea; text-decoration: none;
+    font-weight: 600; font-size: 0.9rem;
+}
+.btn-outline-link:hover { text-decoration: underline; }
+
+/* Фильтр */
+.filter-card {
+    background: white; border-radius: 12px; padding: 1rem 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07); margin-bottom: 1.25rem;
+}
+.filter-top { margin-bottom: 0.75rem; }
+.preset-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.preset-btn {
+    padding: 0.3rem 0.85rem; border-radius: 20px;
+    font-size: 0.85rem; text-decoration: none; border: 1px solid #ddd;
+    color: #5d6d7e; background: #f8f9fa; transition: all 0.2s;
+}
+.preset-btn.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white; border-color: transparent;
+}
+.preset-btn:hover:not(.active) { border-color: #667eea; color: #667eea; }
+.custom-period { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.date-input { padding: 0.35rem 0.6rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+.date-sep { color: #bdc3c7; }
+.btn-apply {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white; border: none; padding: 0.35rem 1rem;
+    border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+}
+.period-label { color: #7f8c8d; font-size: 0.85rem; margin-left: 0.5rem; }
+
+/* KPI */
+.kpi-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1rem; margin-bottom: 1.5rem;
+}
+.kpi-card {
+    background: white; border-radius: 12px; padding: 1.25rem 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    border-top: 3px solid #667eea;
+}
+.kpi-label { font-size: 0.8rem; font-weight: 600; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem; }
+.kpi-value { font-size: 1.9rem; font-weight: 700; color: #2c3e50; line-height: 1.1; }
+.kpi-diff { font-size: 0.8rem; margin-top: 0.35rem; }
+.kpi-diff.pos { color: #27ae60; }
+.kpi-diff.neg { color: #e74c3c; }
+    /* Charts */
+.chart-card {
+    background: white; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+.chart-title { font-weight: 600; color: #2c3e50; margin-bottom: 0.5rem; font-size: 0.95rem; }
+.chart-legend { font-size: 0.78rem; color: #7f8c8d; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.legend-dot.ml { margin-left: 0.75rem; }
+.chart-wrap { position: relative; }
+
+.donut-row { display: flex; align-items: center; gap: 2.5rem; }
+.donut-wrap { position: relative; height: 200px; width: 200px; flex-shrink: 0; }
+.donut-center {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem; font-weight: 700; color: #2c3e50;
+    pointer-events: none;
+}
+.donut-legend { flex: 1; }
+.dl-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #5d6d7e; margin-bottom: 0.5rem; }
+.dl-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+/* Bottom grid */
+.bottom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.info-card {
+    background: white; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+.info-title { font-weight: 700; color: #2c3e50; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 1rem; }
+
+.status-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+.status-name { color: #5d6d7e; }
+.status-badge {
+    font-weight: 700; font-size: 0.95rem; min-width: 28px; text-align: right;
+}
+.status-badge.blue { color: #1976d2; }
+.status-badge.green { color: #27ae60; }
+.status-badge.orange { color: #ef6c00; }
+.status-badge.red { color: #c62828; }
+.status-badge.gray { color: #7f8c8d; }
+
+.ops-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.ops-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.9rem; color: #5d6d7e;
+}
+.ops-row.border-top { border-top: 1px solid #f1f3f4; padding-top: 0.6rem; margin-top: 0.2rem; }
+.ops-row strong { color: #2c3e50; }
+.ops-row strong.accent { color: #667eea; }
+.ops-row strong.orange { color: #ef6c00; }
+
+@media (max-width: 1024px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .donut-row { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 600px) {
+    .donut-wrap { width: 160px; height: 160px; }
+}
+@media (max-width: 600px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
