@@ -266,5 +266,174 @@ def dashboard(request):
     }
     return render(request, template_name='dashboard.html', context=context)
 
+def report(request):
+    """
+    Детальный аналитический отчет с расширенными метриками
+    Помимо дашборда, включает:
+    - сравнение с аналогичными периодом прошлого года
+    - кривую пикапа бронирования
+    - гистограмма глубины бронирований
+    - помесячное сравнение последних 4 месяцев
+    - статистика отмен и возвратов
+    - фильтрация по типу номера
+    :param request:
+    :return:
+    """
+
+    today = date.today()
+    #Парсинг фильтра по типу номера
+    room_type_id = request.GET.get('room_type') or None
+    if room_type_id:
+        try:
+            room_type_id = int(room_type_id)
+        except ValueError:
+            room_type_id = None
+
+    #Определение периода отчета
+    preset = request.GET.get('preset', 'month')
+    start_param = request.GET.get('start_date')
+    end_param = request.GET.get('end_date')
+
+    if start_param and end_param:
+        #Произвольный период с гет параметра
+        try:
+            start_date = date.fromisoformat(start_param)
+            end_date = date.fromisoformat(end_param)
+            preset = 'custom'
+        except ValueError:
+            'Откат текущему месяцу при ошибке'
+            start_date = today.replace(day=1)
+            end_date = today
+
+    else:
+        #Вычисление границ периода по пресету
+        if preset == 'prev_month':
+            end_date = today.replace(day=1) - timedelta(days=1)
+            start_date = end_date.replace(day=1)
+
+        elif preset == 'quarter':
+            quarter_start_month = ((today.month -1) // 3) * 3 + 1
+            end_date = today
+            start_date = today.replace(month = quarter_start_month, day=1)
+
+        elif preset == 'prev_quarter':
+            quarter_start_month = ((today.month -1) // 3) * 3 + 1
+            end_date = today.replace(month=quarter_start_month, day=1) - timedelta(days=1)
+            start_date = end_date.replace(month=((end_date.month - 1) // 3) * 3 + 1, day=1)
+
+        else:
+            #Защита от перевернутого диапазона дат
+            start_date = today.replace(day=1)
+            end_date = today
+
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    total_rooms = Room.objects.count() or 1
+
+    #Основные KPI за текущий период
+    bookings = list(_bookings_for_period(start_date, end_date, room_type_id))
+    revenue = sum((b.total_price for b in bookings), Decimal('0'))
+    occ_nights, room_nights, occ_pct = _occ_stats(bookings, start_date, end_date, total_rooms)
+    adr = round(revenue / occ_nights, 0) if occ_nights else Decimal('0')
+    new_bookings_count = len(bookings)
+
+    #Аналогичный период прошлого года(берем те же даты, но на год раньше)
+    py_start = start_date.replace(year=start_date.year - 1)
+    py_end = end_date.replace(year=end_date.year - 1)
+    py_bookings = list(_bookings_for_period(py_start, py_end, room_type_id))
+    py_revenue = sum((b.total_price for b in py_bookings), Decimal('0'))
+    py_occ, py_room_nights, py_occ_pct = _occ_stats(py_bookings, py_start, py_end, total_rooms)
+    py_adr = round(py_revenue / py_occ, 0) if py_occ else Decimal('0')
+    py_new = len(py_bookings)
+
+
+    def diff_pct(cur, prev):
+        #Вычисляет процентное соотношение (cur - prev)/prev *100
+        if not prev:
+            return None
+        return round((float(cur) - float(prev)) / float(prev) * 100, 1)
+
+    def diff_pp(cur, prev):
+        #Вычисляет разницу в процентных пунктах (для показателей уже выраженных процентах)
+        return round(cur - prev, 1)
+
+    def build_picup(blist):
+        """
+        Показывает как накапливаются бронирования от 90 дней до заезда до дня заезда
+        по оси x дни до заезда, по оси y кол-во бронирований сделанных не позже чем за x дней до заезда
+        строится для текущ и прошлогод для стравнения
+        :return:
+        """
+        curve = []
+        for days_before in range(90, -1, -1):
+            cnt = sum(
+                1 for b in blist
+                if (b.check_in_date - b.created_at.date()).days >= days_before
+            )
+            curve.append(cnt)
+
+
+    picup_cur = build_picup(bookings)
+    picup_prev = build_picup(py_bookings)
+
+    picup_labels = [f'-{90-i}' if i < 90 else '0' for i in range(91)]
+
+    #Глубина бронирования
+    #Гистограмма(за сколько дней до заезда гости бронируют номера)
+    #Разбита на 7 корзин
+    depth_buckets = [
+        ('0-7', 0, 7),
+        ('8-14', 8, 14),
+        ('15-30', 15, 30),
+        ('31-60', 31, 60),
+        ('61-90', 61, 90),
+        ('91-180', 91, 180),
+        ('180+', 181, 99999),
+    ]
+
+    #Для каждого бронирования считаем разницу в днях между датой заезда и датой создания
+    depth_data = []
+    all_depth = [(b.check_in_date - b.created_at.date()).days for b in bookings if b.created]
+    for label, lo, hi in depth_buckets:
+        cnt = sum(1 for d in all_depth if lo <= d <= hi)
+        depth_data.append({'label': label, 'count': cnt})
+
+    #Медиана и максимум глубины бронирования
+    sorted_depths = sorted(all_depth)
+    if sorted_depths:
+        median_depth = sorted_depths[len(sorted_depths) // 2]
+        max_depth = max(sorted_depths)
+        #Определяем в какую корзину попадает медиана
+        median_bucket = '-'
+        for label, lo, hi in depth_buckets:
+            if lo <= median_depth <= hi:
+                median_bucket = label
+                break
+    else:
+        median_bucket = '-'
+        max_depth = 0
+
+    #Помесячное сравнение(таблица за последние 4 месяца)
+    #Для каждого из 4 посл мес считаем загрузку, выручку и adr
+    #Текущий незавешенный месяц считается до сегодняшнего дня
+
+    monthly_table = []
+    for i in range(3, -1, -1):
+        #вычисляем начало каждого месяца
+        ref = today - timedelta(days=30 * i)
+        m_start = ref.replace(day=1)
+        last_day = monthrange(m_start.year, m_start.month)[1]
+        m_end = m_start.replace(day=last_day)
+        is_future = m_end > today
+
+
+
+
+
+
+
+
+
 
 
