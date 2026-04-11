@@ -94,6 +94,10 @@ def dashboard(request):
             month_start = month_end.replace(day=1)
         elif preset == 'quarter':
             q_start_month = ((today.month - 1) // 3) * 3 + 1
+            month_end = today
+            month_start = today.replace(month=q_start_month, day=1)
+        elif preset == 'prev_quarter':
+            q_start_month = ((today.month - 1) // 3) * 3 + 1
             month_end = today.replace(month=q_start_month, day=1) - timedelta(days=1)
             month_start = month_end.replace(month=((month_end.month - 1) // 3) * 3 + 1, day=1)
         elif preset == 'year':
@@ -264,7 +268,7 @@ def dashboard(request):
         'popular_name': popular_name,
         'svc_pending': svc_pending
     }
-    return render(request, template_name='dashboard.html', context=context)
+    return render(request, template_name='analytics/dashboard.html', context=context)
 
 def report(request):
     """
@@ -394,7 +398,7 @@ def report(request):
 
     #Для каждого бронирования считаем разницу в днях между датой заезда и датой создания
     depth_data = []
-    all_depth = [(b.check_in_date - b.created_at.date()).days for b in bookings if b.created]
+    all_depth = [(b.check_in_date - b.created_at.date()).days for b in bookings if b.created_at]
     for label, lo, hi in depth_buckets:
         cnt = sum(1 for d in all_depth if lo <= d <= hi)
         depth_data.append({'label': label, 'count': cnt})
@@ -426,6 +430,94 @@ def report(request):
         last_day = monthrange(m_start.year, m_start.month)[1]
         m_end = m_start.replace(day=last_day)
         is_future = m_end > today
+
+        #Для завершенных месяцев берем весь месяц(m_end)
+        #Для текущего незавершенного только до сегодня(today)
+        #Чтобы не занижать показатели на будующие дни без данных
+        m_end_actual = min(m_end, today)
+        #Загружаем бронирования пересекающиеся с фактич периодом месяца
+        m_books = list(_bookings_for_period(m_start, m_end_actual, room_type_id))
+        m_rev = sum((b.total_price for b in m_books), Decimal('0'))
+        m_occ, m_rn, m_pct = _occ_stats(m_books, m_start, m_end_actual, total_rooms)
+        m_adr = round(m_rev / m_occ, 0) if m_occ else Decimal('0')
+        is_cur = (m_start == start_date.replace(day=1) if not is_future else False)
+
+        monthly_table.append({
+            'label': _month_label(m_start), #апрель 2026
+            'is_current': is_cur, #Выделить строку в шаблоне
+            'is_future': is_future, #Месяц еще не завершен
+            'occ_pct': m_pct, #Загрузка в %
+            'revenue': int(m_rev), #Выручка в руб
+            'adr': int(m_adr), #adr в рублях(ср цена за продан ночь)
+        })
+
+    #Отмена и возвраты
+    #Считаем процент отмен и сумму возвратов за выбранный период
+    all_period_bookings = Booking.objects.filter(
+        check_in_date__gte = start_date,
+        check_in_date__lte = end_date,
+    )
+    if room_type_id:
+        all_period_bookings = all_period_bookings.filter(room__room_type_id=room_type_id)
+
+    total_all = all_period_bookings.count()
+    cancelled_qs = all_period_bookings.filter(status='cancelled')
+    total_cancelled = cancelled_qs.count()
+
+    #Процент отмен от общешл числа бронирований за период
+    cancel_pct = round(total_cancelled / total_all * 100, 1) if total_all else 0
+
+    #Сумма возвратов из платежей со статусом refunded для отмен брон
+    refund_sum = Payment.objects.filter(
+        booking__in = cancelled_qs, status = 'refunded'
+    ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+
+    #Список типов номеров для выпадающего списка
+    room_types = RoomType.objects.all()
+
+    context = {
+        'title': 'Аналитический отчет',
+        'room_types': room_types,
+        'selected_room_type': room_type_id,
+        'preset': preset,
+        'start_date': start_date.isoformat(),
+        'end_date': end_date.isoformat(),
+        'period_label': f'{start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}',
+
+        'revenue': int(revenue),
+        'revenue_diff': diff_pct(revenue, py_revenue),
+        'py_revenue': int(py_revenue),
+        'occ_pct': occ_pct,
+        'occ_diff': diff_pp(occ_pct, py_occ_pct),
+        'py_occ_pct': py_occ_pct,
+        'adr': int(adr),
+        'adr_diff': diff_pct(adr, py_adr),
+        'py_adr': int(py_adr),
+        'new_bookings': new_bookings_count,
+        'new_bookings_diff': diff_pct(new_bookings_count, py_new),
+        'py_new': py_new,
+
+        'pickup_labels_json': json.dumps(picup_labels),
+        'pickup_cur_json': json.dumps(picup_cur),
+        'pickup_prev_json': json.dumps(picup_prev),
+
+        'cur_year': start_date.year,
+        'prev_year': py_start.year,
+        'depth_json': json.dumps(depth_data),
+        'median_bucket': median_bucket,
+        'max_depth': max_depth,
+        'monthly_table': monthly_table,
+
+        'total_cancelled': total_cancelled,
+        'cancel_pct': cancel_pct,
+        'refund_sum': int(refund_sum),
+    }
+
+    return render(request, template_name='analytics/report.html', context=context)
+
+
+
+
 
 
 

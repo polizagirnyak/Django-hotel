@@ -1,0 +1,386 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block content %}
+<div class="an-container">
+
+    <div class="an-header">
+        <h1>Аналитический отчёт</h1>
+        <a href="{% url 'analytics_dashboard' %}" class="btn-outline-link">← Дашборд</a>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="filter-card">
+        <form method="get" id="filterForm">
+            <div class="filter-top">
+                <!-- Быстрые периоды -->
+                <div class="preset-group">
+                    <a href="?preset=month{% if selected_room_type %}&room_type={{ selected_room_type }}{% endif %}"
+                       class="preset-btn {% if preset == 'month' %}active{% endif %}">Текущий месяц</a>
+                    <a href="?preset=prev_month{% if selected_room_type %}&room_type={{ selected_room_type }}{% endif %}"
+                       class="preset-btn {% if preset == 'prev_month' %}active{% endif %}">Прошлый месяц</a>
+                    <a href="?preset=quarter{% if selected_room_type %}&room_type={{ selected_room_type }}{% endif %}"
+                       class="preset-btn {% if preset == 'quarter' %}active{% endif %}">Текущий квартал</a>
+                    <a href="?preset=prev_quarter{% if selected_room_type %}&room_type={{ selected_room_type }}{% endif %}"
+                       class="preset-btn {% if preset == 'prev_quarter' %}active{% endif %}">Прошлый квартал</a>
+                </div>
+
+                <!-- Фильтр по типу номеров -->
+                <div class="type-group">
+                    <a href="?preset={{ preset }}&start_date={{ start_date }}&end_date={{ end_date }}"
+                       class="type-btn {% if not selected_room_type %}active{% endif %}">Все</a>
+                    {% for rt in room_types %}
+                    <a href="?preset={{ preset }}&start_date={{ start_date }}&end_date={{ end_date }}&room_type={{ rt.id }}"
+                       class="type-btn {% if selected_room_type == rt.id %}active{% endif %}">{{ rt.name }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Произвольный период -->
+            <div class="custom-period">
+                <input type="date" name="start_date" value="{{ start_date }}" class="date-input">
+                <span class="date-sep">—</span>
+                <input type="date" name="end_date" value="{{ end_date }}" class="date-input">
+                <button type="submit" class="btn-apply">Применить</button>
+                <span class="period-label">{{ period_label }}</span>
+            </div>
+        </form>
+    </div>
+  <!-- KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Выручка (факт)</div>
+            <div class="kpi-value">{{ revenue|floatformat:"g" }} ₽</div>
+            <div class="kpi-sub">{{ prev_year }}: {{ py_revenue|floatformat:"g" }} ₽
+                {% if revenue_diff is not None %}
+                <span class="diff {% if revenue_diff >= 0 %}pos{% else %}neg{% endif %}">
+                    {% if revenue_diff >= 0 %}+{% endif %}{{ revenue_diff }}%
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Загрузка</div>
+            <div class="kpi-value">{{ occ_pct }}%</div>
+            <div class="kpi-sub">{{ prev_year }}: {{ py_occ_pct }}%
+                <span class="diff {% if occ_diff >= 0 %}pos{% else %}neg{% endif %}">
+                    {% if occ_diff >= 0 %}+{% endif %}{{ occ_diff }} пп
+                </span>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">ADR (ср. цена)</div>
+            <div class="kpi-value">{{ adr }} ₽</div>
+            <div class="kpi-sub">{{ prev_year }}: {{ py_adr }} ₽
+                {% if adr_diff is not None %}
+                <span class="diff {% if adr_diff >= 0 %}pos{% else %}neg{% endif %}">
+                    {% if adr_diff >= 0 %}+{% endif %}{{ adr_diff }}%
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Новых броней</div>
+            <div class="kpi-value">{{ new_bookings }}</div>
+            <div class="kpi-sub">{{ prev_year }}: {{ py_new }}
+                {% if new_bookings_diff is not None %}
+                <span class="diff {% if new_bookings_diff >= 0 %}pos{% else %}neg{% endif %}">
+                    {% if new_bookings_diff >= 0 %}+{% endif %}{{ new_bookings_diff }}%
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Пикап броней -->
+    <div class="chart-card" style="margin-bottom:1rem">
+        <div class="chart-title">Пикап броней — нарастающим итогом (кол-во броней)</div>
+        <div class="chart-wrap" style="height:250px">
+            <canvas id="pickupChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Глубина бронирования -->
+    <div class="chart-card" style="margin-bottom:1rem">
+        <div class="chart-title">Глубина бронирования</div>
+        <div class="chart-wrap" style="height:220px">
+            <canvas id="depthChart"></canvas>
+        </div>
+        <div class="depth-meta">
+            <div class="depth-row"><span>Медиана</span> <strong>{{ median_bucket }} дней</strong></div>
+            <div class="depth-row"><span>Самый ранний</span> <strong>{{ max_depth }} дней</strong></div>
+        </div>
+    </div>
+  <!-- Сравнение периодов -->
+    <div class="section-card" style="margin-bottom:1rem">
+        <div class="section-title">Сравнение периодов — загрузка и выручка</div>
+        <div class="table-responsive">
+            <table class="cmp-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        {% for m in monthly_table %}
+                        <th class="{% if m.is_current %}cur-col{% endif %}">
+                            {{ m.label }}
+                            {% if m.is_current %} ★{% endif %}
+                            {% if m.is_future %}<small>(прогноз)</small>{% endif %}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="row-label">Загрузка</td>
+                        {% for m in monthly_table %}
+                        <td class="{% if m.is_current %}cur-col{% endif %} {% if m.is_future %}future{% endif %}">
+                            {{ m.occ_pct }}%
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <td class="row-label">Выручка</td>
+                        {% for m in monthly_table %}
+                        <td class="{% if m.is_current %}cur-col{% endif %} {% if m.is_future %}future{% endif %}">
+                            {% if m.is_future %}~{% endif %}{{ m.revenue|floatformat:"g" }} ₽
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <td class="row-label">ADR</td>
+                        {% for m in monthly_table %}
+                        <td class="{% if m.is_current %}cur-col{% endif %} {% if m.is_future %}future{% endif %}">
+                            {% if m.is_future %}—{% else %}{{ m.adr }} ₽{% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Отмены -->
+    <div class="cancel-card">
+        <div class="section-title">Отмены и возвраты</div>
+        <div class="cancel-grid">
+            <div class="cancel-row">
+                <span class="cancel-label">Всего отменено</span>
+                <span class="cancel-val">{{ total_cancelled }} броней</span>
+            </div>
+            <div class="cancel-row">
+                <span class="cancel-label">% отмен</span>
+                <span class="cancel-val">
+                    {{ cancel_pct }}%
+                    {% if cancel_pct <= 10 %}
+                    <span class="tag-norm">— норма</span>
+                    {% else %}
+                    <span class="tag-warn">— высокий</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="cancel-row">
+                <span class="cancel-label">Сумма возвратов</span>
+                <span class="cancel-val">{{ refund_sum|floatformat:"g" }} ₽</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const pickupLabels = {{ pickup_labels_json|safe }};
+const pickupCur    = {{ pickup_cur_json|safe }};
+const pickupPrev   = {{ pickup_prev_json|safe }};
+const depthData    = {{ depth_json|safe }};
+  // Пикап
+new Chart(document.getElementById('pickupChart'), {
+    type: 'line',
+    data: {
+        labels: pickupLabels,
+        datasets: [
+            {
+                label: '{{ cur_year }} ({{ new_bookings }} броней)',
+                data: pickupCur,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102,126,234,0.08)',
+                fill: true,
+                tension: 0.3, pointRadius: 0, borderWidth: 2.5,
+            },
+            {
+                label: '{{ prev_year }} ({{ py_new }} броней)',
+                data: pickupPrev,
+                borderColor: '#bdc3c7',
+                borderDash: [6, 3],
+                fill: false,
+                tension: 0.3, pointRadius: 0, borderWidth: 2,
+            }
+        ]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 } } },
+            tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+            x: {
+                ticks: {
+                    maxTicksLimit: 10,
+                    callback: function(val, idx) {
+                        return pickupLabels[idx] % 7 === 0 || pickupLabels[idx] === '0'
+                            ? pickupLabels[idx]
+                            : '';
+                    }
+                }
+            },
+            y: { beginAtZero: true }
+        }
+    }
+});
+
+// Глубина бронирования
+new Chart(document.getElementById('depthChart'), {
+    type: 'bar',
+    data: {
+        labels: depthData.map(d => d.label),
+        datasets: [{
+            data: depthData.map(d => d.count),
+            backgroundColor: [
+                'rgba(102,126,234,0.5)', 'rgba(102,126,234,0.6)',
+                'rgba(102,126,234,0.7)', 'rgba(118,75,162,0.7)',
+                'rgba(118,75,162,0.8)', 'rgba(118,75,162,0.85)',
+                'rgba(118,75,162,0.9)',
+            ],
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { ticks: { font: { size: 11 } } }
+        }
+    }
+});
+</script>
+
+<style>
+.an-container { max-width: 1300px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+.an-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.an-header h1 {
+    font-size: 1.8rem; font-weight: 700; margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.btn-outline-link {
+    margin-left: auto; color: #667eea; text-decoration: none; font-weight: 600; font-size: 0.9rem;
+}
+
+/* Фильтры */
+.filter-card {
+    background: white; border-radius: 12px; padding: 1rem 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07); margin-bottom: 1.25rem;
+}
+.filter-top { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem; align-items: center; }
+
+.preset-group, .type-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.preset-btn, .type-btn {
+    padding: 0.3rem 0.85rem; border-radius: 20px;
+    font-size: 0.85rem; text-decoration: none; border: 1px solid #ddd;
+    color: #5d6d7e; background: #f8f9fa; transition: all 0.2s;
+}
+.preset-btn.active, .type-btn.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white; border-color: transparent;
+}
+.preset-btn:hover:not(.active), .type-btn:hover:not(.active) {
+    border-color: #667eea; color: #667eea;
+}
+
+.type-group { border-left: 1px solid #e9ecef; padding-left: 1rem; }
+  .custom-period { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.date-input {
+    padding: 0.35rem 0.6rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem;
+}
+.date-sep { color: #bdc3c7; }
+.btn-apply {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white; border: none; padding: 0.35rem 1rem;
+    border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+}
+.period-label { color: #7f8c8d; font-size: 0.85rem; margin-left: 0.5rem; }
+
+/* KPI */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+.kpi-card {
+    background: white; border-radius: 12px; padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07); border-top: 3px solid #667eea;
+}
+.kpi-label { font-size: 0.78rem; font-weight: 600; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.3rem; }
+.kpi-value { font-size: 1.75rem; font-weight: 700; color: #2c3e50; line-height: 1.1; }
+.kpi-sub { font-size: 0.8rem; color: #95a5a6; margin-top: 0.3rem; }
+.diff { font-weight: 600; margin-left: 0.25rem; }
+.diff.pos { color: #27ae60; }
+.diff.neg { color: #e74c3c; }
+
+/* Charts */
+.chart-card {
+    background: white; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+.chart-title { font-weight: 600; color: #2c3e50; margin-bottom: 0.75rem; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.3px; }
+.chart-wrap { position: relative; }
+
+.depth-meta { margin-top: 0.75rem; border-top: 1px solid #f1f3f4; padding-top: 0.75rem; }
+.depth-row { display: flex; justify-content: space-between; font-size: 0.9rem; color: #5d6d7e; margin-bottom: 0.3rem; }
+.depth-row strong { color: #2c3e50; }
+
+/* Monthly comparison */
+.section-card {
+    background: white; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+.section-title {
+    font-weight: 700; color: #2c3e50; font-size: 0.85rem;
+    text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 1rem;
+}
+.table-responsive { overflow-x: auto; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.cmp-table th {
+    padding: 0.6rem 1rem; text-align: center; font-weight: 600;
+    color: #5d6d7e; border-bottom: 2px solid #e9ecef; background: #f8f9fa;
+}
+.cmp-table td {
+    padding: 0.6rem 1rem; text-align: center;
+    border-bottom: 1px solid #f1f3f4; color: #2c3e50;
+}
+.cmp-table .row-label { text-align: left; font-weight: 600; color: #5d6d7e; }
+.cmp-table .cur-col { color: #667eea; font-weight: 700; background: rgba(102,126,234,0.05); }
+.cmp-table .future { color: #95a5a6; font-style: italic; }
+
+/* Cancellations */
+.cancel-card {
+    background: white; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+.cancel-grid { display: flex; gap: 3rem; flex-wrap: wrap; }
+.cancel-row { display: flex; flex-direction: column; gap: 0.2rem; }
+.cancel-label { font-size: 0.8rem; color: #7f8c8d; font-weight: 600; text-transform: uppercase; }
+.cancel-val { font-size: 1.1rem; font-weight: 600; color: #2c3e50; }
+.tag-norm { font-size: 0.8rem; font-weight: 600; color: #27ae60; background: #eafaf1; padding: 0.15rem 0.5rem; border-radius: 10px; }
+.tag-warn { font-size: 0.8rem; font-weight: 600; color: #e74c3c; background: #fdedec; padding: 0.15rem 0.5rem; border-radius: 10px; }
+
+@media (max-width: 1024px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .filter-top { flex-direction: column; }
+    .type-group { border-left: none; padding-left: 0; border-top: 1px solid #e9ecef; padding-top: 0.75rem; }
+}
+@media (max-width: 600px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .cancel-grid { flex-direction: column; gap: 1rem; }
+}
+</style>
+{% endblock %}
