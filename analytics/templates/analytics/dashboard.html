@@ -219,7 +219,10 @@ new Chart(document.getElementById('donutChart'), {
 // Donut legend
 const legend = document.getElementById('donutLegend');
 donutLabels.forEach((label, i) => {
-    legend.innerHTML += <div class="dl-row"><span class="dl-dot" style="background:${donutColors[i]}"></span>${label} — ${donutData[i]}%</div>;
+    const row = document.createElement('div');
+    row.className = 'dl-row';
+    row.innerHTML = `<span class="dl-dot" style="background:${donutColors[i]}"></span>${label} — ${donutData[i]}%`;
+    legend.appendChild(row);
 });
 </script>
 

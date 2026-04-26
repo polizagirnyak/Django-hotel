@@ -59,7 +59,7 @@ def _occ_stats(bookings, start, end, total_rooms):
         b_end = min(b.check_out_date, end)
         occupied += max((b_end-b_start).days, 0)
     #Процент загрузки отеля
-    pct = round(occupied / total_rooms * 100, 1) if total_room_nights else 0
+    pct = round(occupied / total_room_nights * 100, 1) if total_room_nights else 0
     return occupied, total_room_nights, pct
 
 
@@ -253,7 +253,7 @@ def dashboard(request):
         'daily_occ_json': json.dumps(daily_occ),
         'donut_labels_json': json.dumps(donut_labels),
         'donut_data_json': json.dumps(donut_data),
-        'donat_colors_json': json.dumps(donut_colors),
+        'donut_colors_json': json.dumps(donut_colors),
         'status_confirmed': status_map.get('confirmed', 0),
         'status_checked_in': status_map.get('checked_in', 0),
         'status_awaiting': status_map.get('awaiting_payment', 0),
@@ -376,6 +376,7 @@ def report(request):
                 if (b.check_in_date - b.created_at.date()).days >= days_before
             )
             curve.append(cnt)
+        return curve
 
 
     picup_cur = build_picup(bookings)
