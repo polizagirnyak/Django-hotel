@@ -17,7 +17,7 @@ class Housekeeper(models.Model):
         verbose_name_plural = 'Горничные'
 
     def get_short_name(self):
-        last = self.user.last_name or self.user.user_name
+        last = self.user.last_name or self.user.username
         first = self.user.first_name
         return f'{last} {first[0]}.' if first else last
 
