@@ -125,6 +125,7 @@
                                 data-room="{{ room.id }}"
                                 data-date="{{ date_str }}"
                                 title="{{ cell.customer_name }} | {{ cell.check_in|date:'d.m.Y' }} — {{ cell.check_out|date:'d.m.Y' }} | {{ cell.status_display }}">
+                                <a href="{% url 'booking_edit' pk=cell.booking_id %}" >
                                 <div class="booking-segment-span"
                                      style="background: linear-gradient(135deg, {{ cell.color }}33, {{ cell.color }}18); border-left: 4px solid {{ cell.color }}; border-right: 2px solid {{ cell.color }}55;">
                                     <div class="seg-name" style="color: {{ cell.color_dark }};">
@@ -135,6 +136,7 @@
                                     </div>
                                     <div class="seg-status">{{ cell.status_display }}</div>
                                 </div>
+                                    </a>
                             </td>
                         {% elif cell %}
                             {# Середина бронирования — ячейка уже занята colspan, пропускаем #}

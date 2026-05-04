@@ -570,6 +570,7 @@ def booking_edit(request, pk):
     next_url = request.GET.get('next') or request.POST.get('next') or reverse('booking_list')
     old_status = booking.status
     old_room = booking.room
+    referer_url = request.META.get('HTTP_REFERER')
 
     if request.method == 'POST':
         form = BookingEditForm(request.POST, instance=booking)
@@ -622,6 +623,10 @@ def booking_edit(request, pk):
                         #Новую комнату помечаем как занятую
                     updated_booking.save()
                     messages.success(request, 'Бронироввание успешно обновлено')
+
+                    if referer_url:
+                        if referer_url.find('chess_table') != -1:
+                            return redirect('chess_table')
                     return redirect('booking_list')
             except Exception as e:
                 messages.error(request, f'Ошибка при обновлении бонирования {str(e)}')
