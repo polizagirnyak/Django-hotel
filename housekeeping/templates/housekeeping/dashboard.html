@@ -1,0 +1,471 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block content %}
+<div class="hk-container">
+
+    <div class="hk-header">
+        <h1>Обслуживание номеров</h1>
+        <div class="hk-date-pill">{{ target_date|date:"j E Y" }}</div>
+    </div>
+
+    <!-- Переключатель даты -->
+    <div class="hk-date-tabs">
+        <a href="?preset=today" class="date-tab {% if preset == 'today' %}active{% endif %}">Сегодня</a>
+        <a href="?preset=tomorrow" class="date-tab {% if preset == 'tomorrow' %}active{% endif %}">Завтра</a>
+        <form method="get" class="date-tab-form {% if preset == 'date' %}active{% endif %}">
+            <input type="hidden" name="preset" value="date">
+            <label class="date-tab-label">На дату</label>
+            <input type="date" name="date" value="{{ target_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <!-- Сводные карточки -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-title">Занятость номеров</div>
+            <div class="summary-row"><span>Свободно</span><span class="summary-val">{{ occ_counts.free|default:0 }}</span></div>
+            <div class="summary-row"><span>Проживание</span><span class="summary-val">{{ occ_counts.stay|default:0 }}</span></div>
+            <div class="summary-row"><span>Выезд</span><span class="summary-val">{{ occ_counts.check_out|default:0 }}</span></div>
+            <div class="summary-row"><span>Выезд и заезд</span><span class="summary-val">{{ occ_counts.check_in_out|default:0 }}</span></div>
+            <div class="summary-row"><span>Заезд</span><span class="summary-val">{{ occ_counts.check_in|default:0 }}</span></div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-title">Состояние номеров</div>
+            <div class="summary-row red"><span>▲ Грязно</span><span class="summary-val">{{ state_counts.dirty|default:0 }}</span></div>
+            <div class="summary-row green"><span>+ Убрано</span><span class="summary-val">{{ state_counts.cleaned|default:0 }}</span></div>
+            <div class="summary-row green"><span>✓ Проверено</span><span class="summary-val">{{ state_counts.verified|default:0 }}</span></div>
+            <div class="summary-row gray"><span>⚙ Ремонт</span><span class="summary-val">{{ state_counts.repair|default:0 }}</span></div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-title">Виды обслуживания</div>
+            <div class="summary-row"><span>Все уборки</span><span class="summary-val">{{ type_counts_all }}</span></div>
+            <div class="summary-row"><span>Текущая уборка</span><span class="summary-val">{{ type_counts.current|default:0 }}</span></div>
+            <div class="summary-row"><span>Генеральная</span><span class="summary-val">{{ type_counts.general|default:0 }}</span></div>
+            <div class="summary-row"><span>Внеплановая</span><span class="summary-val">{{ type_counts.unscheduled|default:0 }}</span></div>
+        </div>
+    </div>
+
+    <!-- Действия + переключатель -->
+    <div class="actions-bar">
+        <button type="button" class="btn-primary" data-bs-toggle="modal" data-bs-target="#cleaningModal">+ Назначить уборку</button>
+        <button type="button" class="btn-outline" data-bs-toggle="modal" data-bs-target="#repairModal">⚙ Назначить ремонт</button>
+
+        <div class="tabs-switch">
+            <a href="{% url 'housekeeping_dashboard' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch active">Номера</a>
+           {% comment %}
+            <a href="{% url 'housekeeping_cleanings' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch">Уборки</a>
+            {% endcomment %}
+        </div>
+    </div>
+    <div class="meta-row">
+        На <strong>{{ target_date|date:"d.m.Y" }}</strong> ремонтов: <strong>{{ repairs_count }}</strong>,
+        уборок: <strong>{{ type_counts_all }}</strong> на общее время исполнения:
+        <strong>{% if total_hours %}{{ total_hours }} ч {% endif %}{{ total_minutes_rest }} мин</strong>
+    </div>
+
+    <!-- Фильтры -->
+    <form method="get" class="filters-row">
+        <input type="hidden" name="preset" value="{{ preset }}">
+        {% if preset == 'date' %}<input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">{% endif %}
+
+        <select name="occupancy" class="filter-select" onchange="this.form.submit()">
+            <option value="">Статус занятости: все</option>
+            {% for code, label in occupancy_choices %}
+            <option value="{{ code }}" {% if filters.occupancy == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="state" class="filter-select" onchange="this.form.submit()">
+            <option value="">Состояние: все</option>
+            {% for code, label in state_choices %}
+            <option value="{{ code }}" {% if filters.state == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="type" class="filter-select" onchange="this.form.submit()">
+            <option value="">Вид уборки: все</option>
+            {% for code, label in cleaning_type_choices %}
+            <option value="{{ code }}" {% if filters.type == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="assignee" class="filter-select" onchange="this.form.submit()">
+            <option value="">Исполнитель: все</option>
+            <option value="none" {% if filters.assignee == 'none' %}selected{% endif %}>Не назначен</option>
+            {% for hk in housekeepers %}
+            <option value="{{ hk.id }}" {% if filters.assignee == hk.id|stringformat:'s' %}selected{% endif %}>{{ hk.get_short_name }}</option>
+            {% endfor %}
+        </select>
+
+        <a href="?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="filter-reset">Сбросить</a>
+
+        <input type="text" name="room" value="{{ filters.room }}" placeholder="Номер комнаты" class="filter-search" onchange="this.form.submit()">
+    </form>
+    <!-- Таблица -->
+    <div class="table-card">
+        <table class="hk-table">
+            <thead>
+                <tr>
+                    <th class="th-check"><input type="checkbox" id="checkAll"></th>
+                    <th>Номер</th>
+                    <th>Корпус</th>
+                    <th>Этаж</th>
+                    <th>Кат.</th>
+                    <th>Статус занятости</th>
+                    <th>Гостей</th>
+                    <th>Выезд</th>
+                    <th>Заезд</th>
+                    <th>Вид уборки</th>
+                    <th>Подготовка (мин)</th>
+                    <th>Состояние</th>
+                    <th>Исполнитель</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr data-room-id="{{ r.room.id }}">
+                    <td><input type="checkbox" class="row-check"></td>
+                    <td class="cell-num">{{ r.room.room_number }}</td>
+                    <td>1</td>
+                    <td>{{ r.room.floor }}</td>
+                    <td><span class="cat-pill" title="{{ r.room.room_type.name }}">{{ r.room_type_abbr }}</span></td>
+                    <td>
+                        <span class="occ-pill occ-{{ r.occupancy.status }}">{{ r.occupancy_label }}</span>
+                    </td>
+                    <td>{% if r.occupancy.guests %}{{ r.occupancy.guests }}{% else %}—{% endif %}</td>
+                    <td>{% if r.occupancy.check_out_dt and r.occupancy.status != 'check_in' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_out_dt|date:'d.m H:i' }}{% else %}—{% endif %}</td>
+                    <td>{% if r.occupancy.check_in_dt and r.occupancy.status != 'check_out' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_in_dt|date:'d.m H:i' }}{% else %}—{% endif %}</td>
+                    <td>{% if r.task %}{{ r.task.get_cleaning_type_display }}{% else %}—{% endif %}</td>
+                    <td>{% if r.task %}{{ r.task.duration_min }}{% else %}—{% endif %}</td>
+                    <td>
+                        <span class="state-pill state-{{ r.state }}" data-room-id="{{ r.room.id }}" data-state="{{ r.state }}">
+                            {% if r.state == 'dirty' %}▲ Грязно
+                            {% elif r.state == 'cleaned' %}+ Убрано
+                            {% elif r.state == 'verified' %}✓ Проверено
+                            {% elif r.state == 'repair' %}⚙ Ремонт
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if r.task %}
+                        <select class="assignee-select" data-task-id="{{ r.task.id }}">
+                            <option value="">Нет</option>
+                            {% for hk in housekeepers %}
+                            <option value="{{ hk.id }}" {% if r.task.assignee_id == hk.id %}selected{% endif %}>{{ hk.get_short_name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <span class="assignee-empty">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="row-menu">
+                            <button class="row-menu-btn" type="button">≡</button>
+                            <div class="row-menu-list">
+                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="dirty">▲ Грязно</button>
+                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="cleaned">+ Убрано</button>
+                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="verified">✓ Проверено</button>
+                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="repair">⚙ Ремонт</button>
+                                {% if r.task %}
+                                <hr>
+                                <form method="post" action="{% url 'housekeeping_delete_task' r.task.id %}" onsubmit="return confirm('Удалить задание?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="danger">Удалить задание</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="14" class="empty-cell">Нет номеров по выбранным фильтрам</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модалка уборки -->
+<div class="modal fade" id="cleaningModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" action=""> {% comment %} action="{% url 'housekeeping_assign_cleaning' %}" {% endcomment %}
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">Назначить уборку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Номер</label>
+                    {{ cleaning_form.room }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Дата</label>
+                    {{ cleaning_form.date }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Вид уборки</label>
+                    {{ cleaning_form.cleaning_type }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Подготовка (мин)</label>
+                    {{ cleaning_form.duration_min }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Исполнитель</label>
+                    {{ cleaning_form.assignee }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Заметки</label>
+                    {{ cleaning_form.notes }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn-primary">Назначить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модалка ремонта -->
+<div class="modal fade" id="repairModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" action=""> {% comment %} action="{% url 'housekeeping_assign_repair' %}" {% endcomment %}
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">Назначить ремонт</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Номер</label>
+                    {{ repair_form.room }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Дата</label>
+                    {{ repair_form.date }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Описание</label>
+                    {{ repair_form.description }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Исполнитель</label>
+                    {{ repair_form.assignee }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn-primary">Назначить</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const TARGET_DATE = "{{ target_date|date:'Y-m-d' }}";
+
+    // Отправка формы
+    function postForm(url, data) {
+        const body = new URLSearchParams();
+        boby.append('csrfmiddlewaretoken', CSRF);
+        Object.entries(data).forEach(([k, v]) => body.append(k, v));
+        return fetch(url, {method: 'POST', body: body, credentials: 'same-origin'})
+            .then(r => r.json());
+
+    //Смена состояния номера через меню
+    document.querySelectorAll('.set-state').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const roomId = btn.dateset.roomId;
+            const state = btn.dateset.state;
+            postForm(`/housekeeping/rooms/${room}/state/`, {state, date: TARGET_DATE})
+            .then(d => { if (d.ok) location.reload();});
+        });
+    });
+
+
+    </script>
+<style>
+
+.hk-container { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1rem; }
+    .hk-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.hk-header h1 {
+    font-size: 1.6rem; font-weight: 700; margin: 0; color: #2c3e50;
+}
+.hk-date-pill {
+    margin-left: auto; color: #7f8c8d; font-size: 0.95rem;
+}
+
+/* Date tabs */
+.hk-date-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap; }
+.date-tab, .date-tab-form {
+    padding: 0.45rem 1rem; border-radius: 8px; border: 1px solid #d4dae3;
+    background: white; color: #5d6d7e; font-size: 0.9rem;
+    text-decoration: none; cursor: pointer; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.date-tab.active, .date-tab-form.active {
+    background: #2563eb; color: white; border-color: #2563eb;
+}
+.date-tab-form input[type="date"] {
+    border: none; background: transparent; color: inherit; font-size: 0.9rem; outline: none;
+}
+.date-tab-form.active input[type="date"] { color: white; }
+.date-tab-form input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.4); }
+.date-tab-form.active input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+.date-tab-label { font-weight: 500; }
+
+/* Summary cards */
+.summary-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1rem; margin-bottom: 1rem;
+}
+.summary-card {
+    background: white; border-radius: 8px; padding: 1rem 1.25rem;
+    border: 1px solid #e5e9f0;
+}
+.summary-title {
+    font-weight: 600; color: #2c3e50; font-size: 0.95rem;
+    margin-bottom: 0.6rem; padding-bottom: 0.4rem;
+}
+.summary-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.4rem 0; font-size: 0.9rem; color: #2c3e50;
+    border-top: 1px solid #f0f3f7;
+}
+.summary-row:first-of-type { border-top: none; }
+.summary-row.red { color: #dc2626; border-top-color: #fecaca; }
+.summary-row.green { color: #16a34a; border-top-color: #bbf7d0; }
+.summary-row.gray { color: #6b7280; }
+.summary-val { font-weight: 700; font-size: 1rem; }
+
+/* Action bar */
+.actions-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.btn-primary {
+    background: #2563eb; color: white; border: none;
+    padding: 0.5rem 1.1rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;
+    cursor: pointer;
+}
+.btn-primary:hover { background: #1d4ed8; }
+.btn-outline {
+    background: white; color: #2c3e50; border: 1px solid #d4dae3;
+    padding: 0.5rem 1.1rem; border-radius: 6px; font-weight: 500; font-size: 0.9rem;
+    cursor: pointer;
+}
+.tabs-switch { margin-left: auto; display: inline-flex; gap: 0; border-radius: 6px; overflow: hidden; border: 1px solid #d4dae3; }
+.tab-switch {
+    padding: 0.5rem 1.1rem; background: white; color: #5d6d7e;
+    text-decoration: none; font-size: 0.9rem; border-right: 1px solid #d4dae3;
+}
+.tab-switch:last-child { border-right: none; }
+.tab-switch.active { background: #2563eb; color: white; }
+
+.meta-row { font-size: 0.88rem; color: #5d6d7e; margin-bottom: 0.75rem; }
+.meta-row strong { color: #2c3e50; }
+
+/* Filters */
+.filters-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.filter-select, .filter-search {
+    padding: 0.4rem 0.75rem; border: 1px solid #d4dae3;
+    border-radius: 6px; background: white; font-size: 0.85rem; color: #2c3e50;
+}
+.filter-search { margin-left: auto; min-width: 180px; }
+.filter-reset { color: #2563eb; font-size: 0.85rem; text-decoration: none; }
+.filter-reset:hover { text-decoration: underline; }
+    /* Table */
+.table-card {
+    background: white; border-radius: 8px; border: 1px solid #e5e9f0;
+    overflow: hidden;
+}
+.hk-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.hk-table th {
+    text-align: left; padding: 0.7rem 0.8rem;
+    color: #6b7280; font-weight: 600; font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.3px;
+    background: #f8fafc; border-bottom: 1px solid #e5e9f0;
+    white-space: nowrap;
+}
+.hk-table td {
+    padding: 0.65rem 0.8rem; border-bottom: 1px solid #f1f5f9;
+    color: #2c3e50; vertical-align: middle;
+}
+.hk-table tbody tr:hover { background: #f9fafb; }
+.th-check { width: 30px; }
+.cell-num { font-weight: 600; }
+.cat-pill {
+    display: inline-block; padding: 0.15rem 0.55rem;
+    background: #eef2ff; color: #4f46e5; border-radius: 4px;
+    font-size: 0.75rem; font-weight: 600;
+}
+.empty-cell { text-align: center; color: #9ca3af; padding: 2rem !important; }
+
+/* Occupancy pills */
+.occ-pill {
+    display: inline-block; padding: 0.2rem 0.7rem; border-radius: 12px;
+    font-size: 0.78rem; font-weight: 500;
+}
+.occ-free { background: #f0fdf4; color: #16a34a; }
+.occ-stay { background: #fef9c3; color: #b45309; }
+.occ-check_out { background: #fef3c7; color: #d97706; }
+.occ-check_in_out { background: #fae8ff; color: #a21caf; }
+.occ-check_in { background: #dbeafe; color: #1d4ed8; }
+
+/* State pills */
+.state-pill {
+    display: inline-block; padding: 0.2rem 0.65rem; border-radius: 12px;
+    font-size: 0.78rem; font-weight: 500; cursor: default;
+}
+.state-dirty { background: #fee2e2; color: #dc2626; }
+.state-cleaned { background: #dcfce7; color: #16a34a; }
+.state-verified { background: #d1fae5; color: #059669; }
+.state-repair { background: #f3f4f6; color: #6b7280; }
+
+/* Assignee */
+.assignee-select {
+    padding: 0.25rem 0.5rem; border: 1px solid #fecaca;
+    background: #fef2f2; border-radius: 12px; font-size: 0.78rem; color: #dc2626;
+    cursor: pointer;
+}
+.assignee-select option { color: #2c3e50; background: white; }
+.assignee-empty { color: #9ca3af; }
+
+/* Row menu */
+.row-menu { position: relative; }
+.row-menu-btn {
+    background: white; border: 1px solid #d4dae3; padding: 0.2rem 0.6rem;
+    border-radius: 4px; cursor: pointer; color: #5d6d7e;
+}
+.row-menu-list {
+    position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+    background: white; border: 1px solid #e5e9f0; border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    min-width: 180px; padding: 0.3rem;
+    display: none;
+}
+.row-menu-list.open { display: block; }
+.row-menu-list button, .row-menu-list form button {
+    display: block; width: 100%; text-align: left;
+    padding: 0.45rem 0.7rem; background: none; border: none;
+    font-size: 0.85rem; color: #2c3e50; cursor: pointer; border-radius: 4px;
+}
+.row-menu-list button:hover { background: #f3f4f6; }
+.row-menu-list .danger { color: #dc2626; }
+.row-menu-list hr { margin: 0.3rem 0; border: none; border-top: 1px solid #e5e9f0; }
+
+/* Modals */
+.modal .form-control, .modal .form-select {
+    width: 100%; padding: 0.45rem 0.65rem;
+    border: 1px solid #d4dae3; border-radius: 6px; font-size: 0.9rem;
+}
+.modal .form-label { font-weight: 600; color: #2c3e50; font-size: 0.85rem; margin-bottom: 0.3rem; }
+
+@media (max-width: 1024px) {
+    .summary-grid { grid-template-columns: 1fr; }
+    .tabs-switch { margin-left: 0; }
+}
+</style>
+{% endblock %}

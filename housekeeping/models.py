@@ -53,9 +53,11 @@ class CleaningTask(models.Model):
         ('current', 'Текущая уборка'),
         ('general', 'Генеральная уборка'),
         ('unsheduled', 'Внеплановая уборка'),
+        ('move_in', 'Уборка при заезде'),
+        ('departure', 'Уборка при выезде'),
     ]
 
-    DURATIONS = {'current': 20, 'general': 40, 'unsheduled': 30}
+    DURATIONS = {'current': 20, 'general': 40, 'unsheduled': 30, 'move_in': 20, 'departure': 40}
 
     STATES = [
         ('pending', 'Ожидает'),

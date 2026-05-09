@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'users',
     'service',
     'analytics',
-    'housekeeping'
+    'housekeeping',
 ]
 
 MIDDLEWARE = [

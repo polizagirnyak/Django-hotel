@@ -198,46 +198,46 @@ def dashboard(request):
             'task': task,
         })
 
-        #Кол-во активных ремонтов на дату
-        repairs_count = RepairTask.objects.filter(
-            date = target_date,
-            state__in = ['pending', 'in_progress']
-        ).count()
+    #Кол-во активных ремонтов на дату
+    repairs_count = RepairTask.objects.filter(
+        date = target_date,
+        state__in = ['pending', 'in_progress']
+    ).count()
 
-        housekeepers = Housekeeper.objects.filter(is_active = True).select_related('user')
+    housekeepers = Housekeeper.objects.filter(is_active = True).select_related('user')
 
-        #Заранее заполненные формы для модальных окон
-        cleaning_form = CleaningTaskForm(initial={'date':target_date})
-        repair_form = RepairTaskForm(initial={'date':target_date})
+    #Заранее заполненные формы для модальных окон
+    cleaning_form = CleaningTaskForm(initial={'date':target_date})
+    repair_form = RepairTaskForm(initial={'date':target_date})
 
-        context = {
-            'target_date': target_date,
-            'preset': preset,
-            'today': today,
-            'tomorrow': today+timedelta(days=1),
-            'rows': rows,
-            'occ_counts': dict(occ_counts),
-            'state_counts': dict(state_counts),
-            'type_counts': dict(type_counts),
-            'type_counts_all': type_counts_all,
-            'total_minutes_rest': total_minutes % 60,
-            'total_hours': total_minutes // 60,
-            'repairs_count': repairs_count,
-            'housekeepers': housekeepers,
-            'filters': {
-                'occupancy': filt_occupancy,
-                'state':filt_state,
-                'type': filt_type,
-                'assignee': filt_assignee,
-                'room':filt_room_search,
-            },
-            'cleaning_form': cleaning_form,
-            'repair_form': repair_form,
-            'state_choices': RoomState.STATES,
-            'cleaning_type_choices': CleaningTask.CLEANING_TYPES,
-            'occupancy_choices': list(OCCUPANCY_LABELS.items()),
-        }
-        return render(request, 'housekeeping/dashboard.html', context=context)
+    context = {
+        'target_date': target_date,
+        'preset': preset,
+        'today': today,
+        'tomorrow': today+timedelta(days=1),
+        'rows': rows,
+        'occ_counts': dict(occ_counts),
+        'state_counts': dict(state_counts),
+        'type_counts': dict(type_counts),
+        'type_counts_all': type_counts_all,
+        'total_minutes_rest': total_minutes % 60,
+        'total_hours': total_minutes // 60,
+        'repairs_count': repairs_count,
+        'housekeepers': housekeepers,
+        'filters': {
+            'occupancy': filt_occupancy,
+            'state':filt_state,
+            'type': filt_type,
+            'assignee': filt_assignee,
+            'room':filt_room_search,
+        },
+        'cleaning_form': cleaning_form,
+        'repair_form': repair_form,
+        'state_choices': RoomState.STATES,
+        'cleaning_type_choices': CleaningTask.CLEANING_TYPES,
+        'occupancy_choices': list(OCCUPANCY_LABELS.items()),
+    }
+    return render(request, 'housekeeping/dashboard.html', context=context)
 
 
 

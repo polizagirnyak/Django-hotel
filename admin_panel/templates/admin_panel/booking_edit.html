@@ -11,9 +11,10 @@
     <div class="form-card">
         <form method="post" class="booking-form">
             {% csrf_token %}
+            {% if return_to %}
 
-            <input type="hidden" name="next" value="{{next_url}}">
-
+                <input type="hidden" name="next" value="{{return_to}}">
+            {% endif %}
             {% if form.non_field_errors %}
             <div class="alert alert-danger">
                 {% for error in form.non_field_errors %}
