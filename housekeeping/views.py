@@ -240,6 +240,55 @@ def dashboard(request):
     return render(request, 'housekeeping/dashboard.html', context=context)
 
 
+#Вкладка уборки
+@login_required
+@staff_required
+def cleanings_list(request):
+    """
+    Список всех заданий на уборку за выбранную дату
+    Удобен, когда нужно работать с заданиями, а не с комнатами
+    :param request:
+    :return:
+    """
+    target_date, preset = _resolve_target_date(request)
+    today = timezone.localdate()
+    tasks = CleaningTask.objects.filter(date=target_date).select_related(
+        'room', 'room__room_type', 'assignee', 'assignee__user'
+    ).order_by('room__room_number')
+
+    filt_type = request.GET.get('type', '')
+    filt_state = request.GET.get('state', '')
+    filt_assignee = request.GET.get('assignee', '')
+
+    if filt_type:
+        tasks = tasks.filter(cleaning_type=filt_type)
+    if filt_state:
+        tasks = tasks.filter(state=filt_state)
+    if filt_assignee == 'none':
+        tasks = tasks.filter(assignee__isnull=True)
+    elif filt_assignee:
+        tasks = tasks.filter(asignee_id=filt_assignee)
+
+    housekeepers = Housekeeper.objects.filter(is_active=True).select_related('user')
+
+    context = {
+        'target_date': target_date,
+        'preset': preset,
+        'today': today,
+        'tomorrow': today + timedelta(days=1),
+        'tasks': tasks,
+        'housekeepers': housekeepers,
+        'filters': {
+            'type': filt_type,
+            'state': filt_state,
+            'assignee': filt_assignee,
+        },
+        'cleaning_type_choices': CleaningTask.CLEANING_TYPES,
+        'task_state_choices': CleaningTask.STATES,
+    }
+
+    return render(request, 'housekeeping/cleanings.html', context=context)
+
 
 
 

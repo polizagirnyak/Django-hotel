@@ -54,9 +54,7 @@
 
         <div class="tabs-switch">
             <a href="{% url 'housekeeping_dashboard' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch active">Номера</a>
-           {% comment %}
             <a href="{% url 'housekeeping_cleanings' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch">Уборки</a>
-            {% endcomment %}
         </div>
     </div>
     <div class="meta-row">
@@ -287,6 +285,35 @@
         });
     });
 
+    //Меню дейтсвий
+    document.querySelectorAll('.row-menu-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            document.querySelectorAll('.row-menu-list.open').forEach(m => {
+                if(m !== btn.nextElementSibling) m.classList.remove('open');
+            });
+            btn.nextElementSibling.classList.toggle('open');
+        });
+    });
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.row-menu-list.open').forEach(m => m.classList.remove('open'));
+    });
+
+    //Назначение исполнителя
+    document.querySelectorAll('.assignee-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+            const taskId = sel.dataset.taskId;
+            postForm(`/housekeeping/tasks/${taskId}/assign/`, {housekeeper_id: sel.value});
+        });
+    });
+
+    //checkbox(Выбрать все)
+    const checkAll = document.getElementById('checkAll');
+    if (checkAll) {
+        checkAll.addEventListener('change', () => {
+            document.querySelectorAll('.row-check').forEach(c => c.checked = checkAll.checked);
+        });
+    };
 
     </script>
 <style>

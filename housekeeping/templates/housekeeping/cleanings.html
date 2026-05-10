@@ -1,0 +1,152 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block content %}
+<div class="hk-container">
+
+    <div class="hk-header">
+        <h1>Уборки — {{ target_date|date:"j E Y" }}</h1>
+    </div>
+
+    <div class="hk-date-tabs">
+        <a href="?preset=today" class="date-tab {% if preset == 'today' %}active{% endif %}">Сегодня</a>
+        <a href="?preset=tomorrow" class="date-tab {% if preset == 'tomorrow' %}active{% endif %}">Завтра</a>
+        <form method="get" class="date-tab-form {% if preset == 'date' %}active{% endif %}">
+            <input type="hidden" name="preset" value="date">
+            <label class="date-tab-label">На дату</label>
+            <input type="date" name="date" value="{{ target_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <div class="actions-bar">
+        <div class="tabs-switch">
+            <a href="{% url 'housekeeping_dashboard' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch">Номера</a>
+            <a href="{% url 'housekeeping_cleanings' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch active">Уборки</a>
+        </div>
+    </div>
+
+    <form method="get" class="filters-row">
+        <input type="hidden" name="preset" value="{{ preset }}">
+        {% if preset == 'date' %}<input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">{% endif %}
+
+        <select name="type" class="filter-select" onchange="this.form.submit()">
+            <option value="">Вид: все</option>
+            {% for code, label in cleaning_type_choices %}
+            <option value="{{ code }}" {% if filters.type == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="state" class="filter-select" onchange="this.form.submit()">
+            <option value="">Состояние: все</option>
+            {% for code, label in task_state_choices %}
+            <option value="{{ code }}" {% if filters.state == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="assignee" class="filter-select" onchange="this.form.submit()">
+            <option value="">Исполнитель: все</option>
+            <option value="none" {% if filters.assignee == 'none' %}selected{% endif %}>Не назначен</option>
+            {% for hk in housekeepers %}
+            <option value="{{ hk.id }}" {% if filters.assignee == hk.id|stringformat:'s' %}selected{% endif %}>{{ hk.get_short_name }}</option>
+            {% endfor %}
+        </select>
+
+        <a href="?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="filter-reset">Сбросить</a>
+    </form>
+  <div class="table-card">
+        <table class="hk-table">
+            <thead>
+                <tr>
+                    <th>Номер</th>
+                    <th>Кат.</th>
+                    <th>Дата</th>
+                    <th>Вид уборки</th>
+                    <th>Подготовка (мин)</th>
+                    <th>Состояние</th>
+                    <th>Исполнитель</th>
+                    <th>Заметки</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tasks %}
+                <tr>
+                    <td class="cell-num">{{ t.room.room_number }}</td>
+                    <td><span class="cat-pill">{{ t.room.room_type.name|slice:':3'|upper }}</span></td>
+                    <td>{{ t.date|date:'d.m.Y' }}</td>
+                    <td>{{ t.get_cleaning_type_display }}</td>
+                    <td>{{ t.duration_min }}</td>
+                    <td>
+                        <select class="task-state-select" data-task-id="{{ t.id }}">
+                            {% for code, label in task_state_choices %}
+                            <option value="{{ code }}" {% if t.state == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>{% if t.assignee %}{{ t.assignee.get_short_name }}{% else %}<span class="assignee-empty">Не назначен</span>{% endif %}</td>
+                    <td>{{ t.notes|default:'—'|truncatechars:50 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="empty-cell">Нет заданий на уборку</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% csrf_token %}
+
+<script>
+  cont CSRF=document.querySelector('[name=csrfmiddlewaretoken]').value
+  document.querySelectorAll('.task-state-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const taskId = sel.dataset.taskId;
+      const body = new URLSearchParams();
+      body.append('csrfmiddlewaretoken', CSRF)
+      body.append('state', sel.value)
+      fetch(`/housekeeping/tasks/${taskId}/state/`, {
+        method: 'POST', body, credentials: 'same-origin'
+      }).then(r => r.json());
+    });
+  });
+
+</script>
+
+<style>
+.hk-container { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1rem; }
+.hk-header h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 1rem; color: #2c3e50; }
+
+.hk-date-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap; }
+.date-tab, .date-tab-form {
+    padding: 0.45rem 1rem; border-radius: 8px; border: 1px solid #d4dae3;
+    background: white; color: #5d6d7e; font-size: 0.9rem;
+    text-decoration: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.date-tab.active, .date-tab-form.active { background: #2563eb; color: white; border-color: #2563eb; }
+.date-tab-form input[type="date"] { border: none; background: transparent; color: inherit; outline: none; }
+.date-tab-form.active input[type="date"] { color: white; }
+.date-tab-form input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.4); }
+.date-tab-form.active input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+.actions-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+.tabs-switch { margin-left: auto; display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid #d4dae3; }
+.tab-switch { padding: 0.5rem 1.1rem; background: white; color: #5d6d7e; text-decoration: none; font-size: 0.9rem; border-right: 1px solid #d4dae3; }
+.tab-switch:last-child { border-right: none; }
+.tab-switch.active { background: #2563eb; color: white; }
+
+.filters-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.filter-select { padding: 0.4rem 0.75rem; border: 1px solid #d4dae3; border-radius: 6px; background: white; font-size: 0.85rem; }
+.filter-reset { color: #2563eb; font-size: 0.85rem; text-decoration: none; }
+  .table-card { background: white; border-radius: 8px; border: 1px solid #e5e9f0; overflow: hidden; }
+.hk-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.hk-table th {
+    text-align: left; padding: 0.7rem 0.8rem; color: #6b7280; font-weight: 600;
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.3px;
+    background: #f8fafc; border-bottom: 1px solid #e5e9f0;
+}
+.hk-table td { padding: 0.65rem 0.8rem; border-bottom: 1px solid #f1f5f9; color: #2c3e50; }
+.hk-table tbody tr:hover { background: #f9fafb; }
+.cell-num { font-weight: 600; }
+.cat-pill { display: inline-block; padding: 0.15rem 0.55rem; background: #eef2ff; color: #4f46e5; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+.assignee-empty { color: #9ca3af; }
+.task-state-select { padding: 0.25rem 0.5rem; border: 1px solid #d4dae3; border-radius: 4px; font-size: 0.85rem; background: white; }
+.empty-cell { text-align: center; color: #9ca3af; padding: 2rem !important; }
+</style>
+{% endblock %}
