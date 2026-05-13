@@ -52,12 +52,12 @@ class CleaningTask(models.Model):
     CLEANING_TYPES = [
         ('current', 'Текущая уборка'),
         ('general', 'Генеральная уборка'),
-        ('unsheduled', 'Внеплановая уборка'),
+        ('unscheduled', 'Внеплановая уборка'),
         ('move_in', 'Уборка при заезде'),
         ('departure', 'Уборка при выезде'),
     ]
 
-    DURATIONS = {'current': 20, 'general': 40, 'unsheduled': 30, 'move_in': 20, 'departure': 40}
+    DURATIONS = {'current': 20, 'general': 40, 'unscheduled': 30, 'move_in': 20, 'departure': 40}
 
     STATES = [
         ('pending', 'Ожидает'),
@@ -93,6 +93,7 @@ class CleaningTask(models.Model):
     def save(self, *args, **kwargs):
         if not self.duration_min:
             self.duration_min = self.DURATIONS.get(self.cleaning_type, 20)
+        super().save(*args, **kwargs)
 
 
 

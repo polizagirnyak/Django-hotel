@@ -107,7 +107,7 @@ class Service(models.Model):
 
     @property
     def min_booking_time_display(self):
-        hours = self.mean_booking_hours
+        hours = self.min_booking_hours
         if hours == 0:
             return 'Можно бронировать в любое время'
         elif hours == 1:

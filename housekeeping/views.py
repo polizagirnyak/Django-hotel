@@ -267,7 +267,7 @@ def cleanings_list(request):
     if filt_assignee == 'none':
         tasks = tasks.filter(assignee__isnull=True)
     elif filt_assignee:
-        tasks = tasks.filter(asignee_id=filt_assignee)
+        tasks = tasks.filter(assignee_id=filt_assignee)
 
     housekeepers = Housekeeper.objects.filter(is_active=True).select_related('user')
 
@@ -288,6 +288,95 @@ def cleanings_list(request):
     }
 
     return render(request, 'housekeeping/cleanings.html', context=context)
+
+
+#Создание заданий
+@login_required
+@staff_required
+def assign_cleaning(request):
+    if request.method == 'POST':
+        form = CleaningTaskForm(request.POST)
+        if form.is_valid():
+            task = form.save(commit=False)
+            task.created_by = request.user
+            task.save()
+            messages.success(request, f'Уборка для номера {task.room.room_number} назначена')
+            return redirect(f'/housekeeping/?preset=date&date={task.date.isoformat()}')
+        #Ошибка валидации
+        messages.error(
+            request,
+            'Ошибки в форме: '
+            + '; '.join(f'{k}: {v[0]}' for k, v in form.errors.items()),)
+    return redirect('housekeeping_dashboard')
+
+#Создает задание на ремонт, одновременно переводит состояние номера в ремонт
+@login_required
+@staff_required
+def assign_repair(request):
+    if request.method == 'POST':
+        form = RepairTaskForm(request.POST)
+        if form.is_valid():
+            task = form.save(commit=False)
+            task.created_by = request.user
+            task.save()
+            #Параллельно отмечаем номер как в ремонте
+            state, _ = RoomState.objects.get_or_create(
+                room = task.room,
+                defaults={'state': 'repair'}
+            )
+            state.state = 'repair'
+            state.updated_by = request.user
+            state.save()
+            messages.success(request, f'Ремонт для номера {task.room.room_number} назначен')
+            return redirect(f'/housekeeping/?preset=date&date={task.date.isoformat()}')
+        messages.error(
+            request,
+            'Ошибки в форме: '
+            + '; '.join(f'{k}: {v[0]}' for k, v in form.errors.items()), )
+    return redirect('housekeeping_dashboard')
+
+
+@login_required
+@staff_required
+@require_POST
+#Меняет состояние номера
+def update_room_state(request, room_id):
+    room = get_object_or_404(Room, pk=room_id)
+    new_state = request.POST.get('state')
+    if new_state not in dict(RoomState.STATES):
+        return JsonResponse({'ok': False, 'error': 'Неизвестное состояние'}, status=400)
+    state, _ = RoomState.objects.get_or_create(room=room)
+    state.state = new_state
+    state.updated_by = request.user
+    state.save()
+
+    #Синхронизация состояние с заданием на эту дату
+    target_date = _parse_date(request.POST.get('date')) or timezone.localdate()
+    task = CleaningTask.objects.filter(room=room, date=target_date).first()
+    if task:
+        if new_state == 'cleaned':
+            task.state = 'done'
+            task.completed_at = timezone.now()
+        elif new_state == 'verified':
+            task.state = 'verified'
+            task.completed_at = task.completed_at or timezone.now()
+        elif new_state == 'dirty':
+            task.state = 'pending'
+            task.completed_at = None
+        task.save()
+
+    return JsonResponse({
+        'ok': True,
+        'state': new_state,
+        'state_label': dict(RoomState.STATES)[new_state]
+    })
+
+
+
+
+
+
+
 
 
 
