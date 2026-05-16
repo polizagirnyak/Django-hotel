@@ -134,8 +134,8 @@
                         <span class="occ-pill occ-{{ r.occupancy.status }}">{{ r.occupancy_label }}</span>
                     </td>
                     <td>{% if r.occupancy.guests %}{{ r.occupancy.guests }}{% else %}—{% endif %}</td>
-                    <td>{% if r.occupancy.check_out_dt and r.occupancy.status != 'check_in' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_out_dt|date:'d.m H:i' }}{% else %}—{% endif %}</td>
-                    <td>{% if r.occupancy.check_in_dt and r.occupancy.status != 'check_out' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_in_dt|date:'d.m H:i' }}{% else %}—{% endif %}</td>
+                    <td>{% if r.occupancy.check_out_dt and r.occupancy.status != 'check_in' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_out_dt|date:'d.m' }}{% else %}—{% endif %}</td>
+                    <td>{% if r.occupancy.check_in_dt and r.occupancy.status != 'check_out' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_in_dt|date:'d.m' }}{% else %}—{% endif %}</td>
                     <td>{% if r.task %}{{ r.task.get_cleaning_type_display }}{% else %}—{% endif %}</td>
                     <td>{% if r.task %}{{ r.task.duration_min }}{% else %}—{% endif %}</td>
                     <td>
@@ -189,7 +189,7 @@
 <!-- Модалка уборки -->
 <div class="modal fade" id="cleaningModal" tabindex="-1">
     <div class="modal-dialog">
-        <form class="modal-content" method="post" action=""> {% comment %} action="{% url 'housekeeping_assign_cleaning' %}" {% endcomment %}
+        <form class="modal-content" method="post" action="{% url 'housekeeping_assign_cleaning' %}">
             {% csrf_token %}
             <div class="modal-header">
                 <h5 class="modal-title">Назначить уборку</h5>
@@ -232,7 +232,7 @@
 <!-- Модалка ремонта -->
 <div class="modal fade" id="repairModal" tabindex="-1">
     <div class="modal-dialog">
-        <form class="modal-content" method="post" action=""> {% comment %} action="{% url 'housekeeping_assign_repair' %}" {% endcomment %}
+        <form class="modal-content" method="post" action="{% url 'housekeeping_assign_repair' %}">
             {% csrf_token %}
             <div class="modal-header">
                 <h5 class="modal-title">Назначить ремонт</h5>
@@ -270,17 +270,18 @@
     // Отправка формы
     function postForm(url, data) {
         const body = new URLSearchParams();
-        boby.append('csrfmiddlewaretoken', CSRF);
+        body.append('csrfmiddlewaretoken', CSRF);
         Object.entries(data).forEach(([k, v]) => body.append(k, v));
         return fetch(url, {method: 'POST', body: body, credentials: 'same-origin'})
             .then(r => r.json());
+    }
 
     //Смена состояния номера через меню
     document.querySelectorAll('.set-state').forEach(btn => {
         btn.addEventListener('click', () => {
-            const roomId = btn.dateset.roomId;
-            const state = btn.dateset.state;
-            postForm(`/housekeeping/rooms/${room}/state/`, {state, date: TARGET_DATE})
+            const roomId = btn.dataset.roomId;
+            const state = btn.dataset.state;
+            postForm(`/housekeeping/rooms/${roomId}/state/`, {state, date: TARGET_DATE})
             .then(d => { if (d.ok) location.reload();});
         });
     });
@@ -299,11 +300,12 @@
         document.querySelectorAll('.row-menu-list.open').forEach(m => m.classList.remove('open'));
     });
 
-    //Назначение исполнителя
+    // Назначение исполнителя
     document.querySelectorAll('.assignee-select').forEach(sel => {
         sel.addEventListener('change', () => {
             const taskId = sel.dataset.taskId;
-            postForm(`/housekeeping/tasks/${taskId}/assign/`, {housekeeper_id: sel.value});
+            postForm(`/housekeeping/tasks/${taskId}/assign/`, {housekeeper_id: sel.value})
+            .catch(() => location.reload());
         });
     });
 

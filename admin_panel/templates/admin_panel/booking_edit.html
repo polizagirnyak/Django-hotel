@@ -191,7 +191,7 @@
                     <span class="btn-icon">💾</span>
                     Сохранить изменения
                 </button>
-                <a href="{{next_url}}" class="btn btn-secondary">
+                <a href="{% if return_to == 'chess_table' %}{% url 'chess_table' %}{% else %}{% url 'booking_list' %}{% endif %}" class="btn btn-secondary">
                     <span class="btn-icon">←</span>
                     Отмена
                 </a>

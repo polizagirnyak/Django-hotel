@@ -371,6 +371,78 @@ def update_room_state(request, room_id):
         'state_label': dict(RoomState.STATES)[new_state]
     })
 
+@login_required
+@staff_required
+@require_POST
+#Меняет state задачи на уборку и синхронизирует room_state
+def update_task_state(request, task_id):
+    task = get_object_or_404(CleaningTask, pk=task_id)
+    new_state = request.POST.get('state')
+    if new_state not in dict(CleaningTask.STATES):
+        return JsonResponse({
+            'ok': False,
+            'error': 'Неизвестное состояние',
+        },
+        status=400)
+    task.state = new_state
+    if new_state in ('done', 'verified'):
+        task.completed_at = task.completed_at or timezone.now()
+    else:
+        task.completed_at = None
+    task.save()
+
+    #Обратная синхронизация
+    room_state, _ = RoomState.objects.get_or_create(room=task.room)
+    if new_state == 'done':
+        room_state.state = 'cleaned'
+    elif new_state == 'verified':
+        room_state.state = 'verified'
+    elif new_state == 'pending':
+        room_state.state = 'dirty'
+
+    room_state.updated_by = request.user
+    room_state.save()
+
+    return JsonResponse({
+        'ok': True,
+        'state': new_state,
+        'state_label': dict(CleaningTask.STATES)[new_state],
+        'room_state': room_state.state
+    })
+
+
+
+
+@login_required
+@staff_required
+@require_POST
+#Назначает или снимает исполнителя в задании таблицы
+def assign_housekeeper(request, task_id):
+    task = get_object_or_404(CleaningTask, pk=task_id)
+    housekeeper_id = request.POST.get('housekeeper_id') or None
+    if housekeeper_id:
+        task.assignee = get_object_or_404(Housekeeper, pk=housekeeper_id)
+    else:
+        task.assignee = None
+    task.save()
+    label = task.assignee.get_short_name() if task.assignee else 'Нет'
+    return JsonResponse({
+        'ok': True,
+        'assignee_label': label,
+        'assignee_id': task.assignee_id
+    })
+
+
+@login_required
+@staff_required
+@require_POST
+#Удаляет задание на уборку из контекстного меню строки таблицы
+def delete_task(request, task_id):
+    task = get_object_or_404(CleaningTask, pk=task_id)
+    room_number = task.room.room_number
+    task.delete()
+    messages.success(request, f'Задание для номера {room_number} удалено')
+    return redirect(request.META.get('HTTP_REFERER', 'housekeeping_dashboard'))
 
 
 

@@ -94,7 +94,7 @@
 {% csrf_token %}
 
 <script>
-  cont CSRF=document.querySelector('[name=csrfmiddlewaretoken]').value
+  const CSRF=document.querySelector('[name=csrfmiddlewaretoken]').value
   document.querySelectorAll('.task-state-select').forEach(sel => {
     sel.addEventListener('change', () => {
       const taskId = sel.dataset.taskId;
@@ -108,6 +108,8 @@
   });
 
 </script>
+
+
 
 <style>
 .hk-container { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1rem; }
