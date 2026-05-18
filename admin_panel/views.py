@@ -572,6 +572,13 @@ def booking_edit(request, pk):
     old_room = booking.room
     return_to = request.POST.get('next') or request.GET.get('next')
 
+    if booking.status == 'checked_out':
+        messages.error(request, 'Завершенное бронирование нельзя редактировать')
+        if return_to == 'chess_table':
+            return redirect('chess_table')
+        return redirect('booking_list')
+
+
     if request.method == 'POST':
         form = BookingEditForm(request.POST, instance=booking)
         if form.is_valid():

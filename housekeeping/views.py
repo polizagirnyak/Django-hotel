@@ -110,6 +110,79 @@ def _abbr_room_type(name):
     return name[:3].upper()
 
 
+#Текущая - каждый день, генеральная - каждый 3й день
+def _ensure_current_cleanings_for_staus(target_date):
+    #Берем только фактическое проживание, без дат заезда и выезда
+    stay_bookings = list(Booking.objects.filter(
+        status = 'checked_in',
+        check_in_date__lt = target_date,
+        check_out_date__gt = target_date
+    ).select_related('room'))
+    occupied_room_ids = {booking.room_id for booking in stay_bookings}
+
+    #Составляем сущ задачи
+    existing_tasks = set(
+        CleaningTask.objects.filter(
+            room_id__in = occupied_room_ids,
+            date = target_date
+        ).values_list('room_id', 'cleaning_type')
+    )
+
+    #Если номер на ремонте, то уборка не производится
+    rooms_in_repair = set(
+        RoomState.objects.filter(
+            room_id__in = occupied_room_ids,
+            state = 'repair'
+        ).values_list('room_id', flat=True)
+    )
+
+    tasks_to_create = []
+    dirty_room_ids = set()
+    for booking in stay_bookings:
+        if booking.room_id in rooms_in_repair:
+            continue
+
+        #Считаем порядковый день проживания относительно даты заезда
+        days_since_check_in = (target_date - booking.check_in_date).days
+
+        #Генеральная уборка заменяет текущую
+        if days_since_check_in > 0 and days_since_check_in % 3 == 0:
+            requested_types = ['general']
+        else:
+            requested_types = ['current']
+        for cleaning_type in requested_types:
+            if (booking.room_id, cleaning_type) in existing_tasks:
+                continue
+
+            tasks_to_create.append(CleaningTask(
+                room = booking.room,
+                date = target_date,
+                cleaning_type = cleaning_type,
+                duration_min = CleaningTask.DURATIONS[cleaning_type],
+                notes = 'Автоматически создана для текущего проживания'
+            ))
+
+            #Новость о плановой уборки должна попасть в задание горничным
+            dirty_room_ids.add(booking.room_id)
+    if not tasks_to_create:
+        return
+    CleaningTask.objects.bulk_create(tasks_to_create)
+
+    for room_id in dirty_room_ids:
+        state, _ = RoomState.objects.get_or_create(
+            room_id = room_id,
+            defaults = {'state':'dirty'}
+        )
+        if state.state not in ('dirty', 'repair'):
+            state.state = 'dirty'
+            state.save(update_fields=['state', 'updated_at'])
+
+
+
+
+
+
+
 @login_required
 @staff_required
 def dashboard(request):
@@ -121,6 +194,7 @@ def dashboard(request):
     - Форма для назначении уборки
     """
     target_date, preset = _resolve_target_date(request)
+    _ensure_current_cleanings_for_staus(target_date)
     today = timezone.localdate()
 
     rooms = list(Room.objects.select_related('room_type').order_by('room_number'))
@@ -443,6 +517,40 @@ def delete_task(request, task_id):
     task.delete()
     messages.success(request, f'Задание для номера {room_number} удалено')
     return redirect(request.META.get('HTTP_REFERER', 'housekeeping_dashboard'))
+
+
+@login_required
+@staff_required
+@require_POST
+def delete_repair(request, repair_id):
+    repair = get_object_or_404(RepairTask, pk=repair_id)
+    room = repair.room
+    room_number = room.room_number
+    target_date = repair.date
+    repair.delete()
+
+    has_active_repairs = RepairTask.objects.filter(
+        room = room,
+        state__in = ['pending', 'in_progress']
+    ).exists()
+    if not has_active_repairs:
+        state, _ = RoomState.objects.get_or_create(room=room)
+        task = CleaningTask.objects.filter(room=room, date=target_date).first()
+        if task and task.state in ('pending', 'in_progress'):
+            state.state = 'dirty'
+        elif task and task.state == 'done':
+            state.state = 'cleaned'
+        else:
+            state.state = 'verified'
+        state.updated_by = request.user
+        state.save()
+
+    messages.success(request, f'Заявка на ремонт для номер {room_number} удалена')
+    return redirect(request.META.get('HTTP_REFERER', 'housekeeping_dashboard'))
+
+
+
+
 
 
 

@@ -57,6 +57,7 @@
             <a href="{% url 'housekeeping_cleanings' %}?preset={{ preset }}{% if preset == 'date' %}&date={{ target_date|date:'Y-m-d' }}{% endif %}" class="tab-switch">Уборки</a>
         </div>
     </div>
+
     <div class="meta-row">
         На <strong>{{ target_date|date:"d.m.Y" }}</strong> ремонтов: <strong>{{ repairs_count }}</strong>,
         уборок: <strong>{{ type_counts_all }}</strong> на общее время исполнения:
@@ -101,6 +102,7 @@
 
         <input type="text" name="room" value="{{ filters.room }}" placeholder="Номер комнаты" class="filter-search" onchange="this.form.submit()">
     </form>
+
     <!-- Таблица -->
     <div class="table-card">
         <table class="hk-table">
@@ -119,26 +121,58 @@
                     <th>Подготовка (мин)</th>
                     <th>Состояние</th>
                     <th>Исполнитель</th>
-                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for r in rows %}
                 <tr data-room-id="{{ r.room.id }}">
-                    <td><input type="checkbox" class="row-check"></td>
-                    <td class="cell-num">{{ r.room.room_number }}</td>
-                    <td>1</td>
-                    <td>{{ r.room.floor }}</td>
-                    <td><span class="cat-pill" title="{{ r.room.room_type.name }}">{{ r.room_type_abbr }}</span></td>
-                    <td>
+                    <td class="select-cell">
+                        <input type="checkbox" class="row-check">
+                        <div class="row-context-menu">
+                            <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="dirty">▲ Грязно</button>
+                            <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="cleaned">+ Убрано</button>
+                            <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="verified">✓ Проверено</button>
+                            <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="repair">⚙ Ремонт</button>
+                            {% if r.task %}
+                            <hr>
+                            <form method="post" action="{% url 'housekeeping_delete_task' r.task.id %}" onsubmit="return confirm('Удалить задание?')">
+                                {% csrf_token %}
+                                <button type="submit" class="danger">Удалить задание</button>
+                            </form>
+                            {% endif %}
+                            {% if r.repair %}
+                            <hr>
+                            <form method="post" action="{% url 'housekeeping_delete_repair' r.repair.id %}" onsubmit="return confirm('Удалить заявку на ремонт?')">
+                                {% csrf_token %}
+                                <button type="submit" class="danger">Удалить ремонт</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="cell-num" data-label="Номер">{{ r.room.room_number }}</td>
+                    <td data-label="Корпус">1</td>
+                    <td data-label="Этаж">{{ r.room.floor }}</td>
+                    <td data-label="Кат."><span class="cat-pill" title="{{ r.room.room_type.name }}">{{ r.room_type_abbr }}</span></td>
+                    <td data-label="Статус занятости">
                         <span class="occ-pill occ-{{ r.occupancy.status }}">{{ r.occupancy_label }}</span>
                     </td>
-                    <td>{% if r.occupancy.guests %}{{ r.occupancy.guests }}{% else %}—{% endif %}</td>
-                    <td>{% if r.occupancy.check_out_dt and r.occupancy.status != 'check_in' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_out_dt|date:'d.m' }}{% else %}—{% endif %}</td>
-                    <td>{% if r.occupancy.check_in_dt and r.occupancy.status != 'check_out' and r.occupancy.status != 'stay' %}{{ r.occupancy.check_in_dt|date:'d.m' }}{% else %}—{% endif %}</td>
-                    <td>{% if r.task %}{{ r.task.get_cleaning_type_display }}{% else %}—{% endif %}</td>
-                    <td>{% if r.task %}{{ r.task.duration_min }}{% else %}—{% endif %}</td>
-                    <td>
+                    <td data-label="Гостей">{% if r.occupancy.guests %}{{ r.occupancy.guests }}{% else %}—{% endif %}</td>
+                    <!-- Выезд -->
+<td>
+    {% if r.occupancy.check_out_dt %}
+        {{ r.occupancy.check_out_dt|date:'d.m' }}
+    {% else %}—{% endif %}
+</td>
+
+<!-- Заезд -->
+<td>
+    {% if r.occupancy.check_in_dt %}
+        {{ r.occupancy.check_in_dt|date:'d.m' }}
+    {% else %}—{% endif %}
+</td>
+                    <td data-label="Вид уборки">{% if r.task %}{{ r.task.get_cleaning_type_display }}{% else %}—{% endif %}</td>
+                    <td data-label="Подготовка">{% if r.task %}{{ r.task.duration_min }}{% else %}—{% endif %}</td>
+                    <td data-label="Состояние">
                         <span class="state-pill state-{{ r.state }}" data-room-id="{{ r.room.id }}" data-state="{{ r.state }}">
                             {% if r.state == 'dirty' %}▲ Грязно
                             {% elif r.state == 'cleaned' %}+ Убрано
@@ -147,7 +181,7 @@
                             {% endif %}
                         </span>
                     </td>
-                    <td>
+                    <td data-label="Исполнитель">
                         {% if r.task %}
                         <select class="assignee-select" data-task-id="{{ r.task.id }}">
                             <option value="">Нет</option>
@@ -159,27 +193,9 @@
                         <span class="assignee-empty">—</span>
                         {% endif %}
                     </td>
-                    <td>
-                        <div class="row-menu">
-                            <button class="row-menu-btn" type="button">≡</button>
-                            <div class="row-menu-list">
-                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="dirty">▲ Грязно</button>
-                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="cleaned">+ Убрано</button>
-                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="verified">✓ Проверено</button>
-                                <button type="button" class="set-state" data-room-id="{{ r.room.id }}" data-state="repair">⚙ Ремонт</button>
-                                {% if r.task %}
-                                <hr>
-                                <form method="post" action="{% url 'housekeeping_delete_task' r.task.id %}" onsubmit="return confirm('Удалить задание?')">
-                                    {% csrf_token %}
-                                    <button type="submit" class="danger">Удалить задание</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="14" class="empty-cell">Нет номеров по выбранным фильтрам</td></tr>
+                <tr><td colspan="13" class="empty-cell">Нет номеров по выбранным фильтрам</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -264,64 +280,93 @@
     </div>
 </div>
 <script>
-    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    const TARGET_DATE = "{{ target_date|date:'Y-m-d' }}";
+const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
+const TARGET_DATE = "{{ target_date|date:'Y-m-d' }}";
 
-    // Отправка формы
-    function postForm(url, data) {
-        const body = new URLSearchParams();
-        body.append('csrfmiddlewaretoken', CSRF);
-        Object.entries(data).forEach(([k, v]) => body.append(k, v));
-        return fetch(url, {method: 'POST', body: body, credentials: 'same-origin'})
-            .then(r => r.json());
+function postForm(url, data) {
+    const body = new URLSearchParams();
+    body.append('csrfmiddlewaretoken', CSRF);
+    Object.entries(data).forEach(([k, v]) => body.append(k, v));
+    return fetch(url, {method: 'POST', body: body, credentials: 'same-origin'})
+        .then(r => r.json());
+}
+
+// Смена состояния номера через меню
+document.querySelectorAll('.set-state').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const roomId = btn.dataset.roomId;
+        const state = btn.dataset.state;
+        postForm(`/housekeeping/rooms/${roomId}/state/`, {state, date: TARGET_DATE})
+            .then(d => { if (d.ok) location.reload(); });
+    });
+});
+
+// Контекстное меню строки
+function closeRowMenus() {
+    document.querySelectorAll('.row-context-menu.open').forEach(menu => {
+        menu.classList.remove('open');
+        menu.style.left = '';
+        menu.style.top = '';
+    });
+}
+
+function openRowContextMenu(event, row) {
+    const menu = row.querySelector('.row-context-menu');
+    if (!menu) return;
+
+    closeRowMenus();
+    menu.classList.add('open');
+
+    const menuRect = menu.getBoundingClientRect();
+    const padding = 8;
+    let left = event.clientX;
+    let top = event.clientY;
+
+    if (left + menuRect.width > window.innerWidth - padding) {
+        left = window.innerWidth - menuRect.width - padding;
+    }
+    if (top + menuRect.height > window.innerHeight - padding) {
+        top = window.innerHeight - menuRect.height - padding;
     }
 
-    //Смена состояния номера через меню
-    document.querySelectorAll('.set-state').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const roomId = btn.dataset.roomId;
-            const state = btn.dataset.state;
-            postForm(`/housekeeping/rooms/${roomId}/state/`, {state, date: TARGET_DATE})
-            .then(d => { if (d.ok) location.reload();});
-        });
-    });
+    menu.style.left = `${Math.max(padding, left)}px`;
+    menu.style.top = `${Math.max(padding, top)}px`;
+}
 
-    //Меню дейтсвий
-    document.querySelectorAll('.row-menu-btn').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            document.querySelectorAll('.row-menu-list.open').forEach(m => {
-                if(m !== btn.nextElementSibling) m.classList.remove('open');
-            });
-            btn.nextElementSibling.classList.toggle('open');
-        });
+document.querySelectorAll('.hk-table tbody tr[data-room-id]').forEach(row => {
+    row.addEventListener('contextmenu', event => {
+        if (event.target.closest('select, input, button, a')) return;
+        event.preventDefault();
+        openRowContextMenu(event, row);
     });
-    document.addEventListener('click', () => {
-        document.querySelectorAll('.row-menu-list.open').forEach(m => m.classList.remove('open'));
+});
+document.querySelectorAll('.row-context-menu').forEach(menu => {
+    menu.addEventListener('click', e => e.stopPropagation());
+});
+document.addEventListener('click', closeRowMenus);
+window.addEventListener('resize', closeRowMenus);
+document.querySelector('.table-card')?.addEventListener('scroll', closeRowMenus);
+
+// Назначение исполнителя
+document.querySelectorAll('.assignee-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+        const taskId = sel.dataset.taskId;
+        postForm(`/housekeeping/tasks/${taskId}/assign/`, {housekeeper_id: sel.value});
     });
+});
 
-    // Назначение исполнителя
-    document.querySelectorAll('.assignee-select').forEach(sel => {
-        sel.addEventListener('change', () => {
-            const taskId = sel.dataset.taskId;
-            postForm(`/housekeeping/tasks/${taskId}/assign/`, {housekeeper_id: sel.value})
-            .catch(() => location.reload());
-        });
+// Чекбокс «выбрать все»
+const checkAll = document.getElementById('checkAll');
+if (checkAll) {
+    checkAll.addEventListener('change', () => {
+        document.querySelectorAll('.row-check').forEach(c => c.checked = checkAll.checked);
     });
-
-    //checkbox(Выбрать все)
-    const checkAll = document.getElementById('checkAll');
-    if (checkAll) {
-        checkAll.addEventListener('change', () => {
-            document.querySelectorAll('.row-check').forEach(c => c.checked = checkAll.checked);
-        });
-    };
-
-    </script>
+}
+</script>
 <style>
-
 .hk-container { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1rem; }
-    .hk-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+
+.hk-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .hk-header h1 {
     font-size: 1.6rem; font-weight: 700; margin: 0; color: #2c3e50;
 }
@@ -350,7 +395,7 @@
 
 /* Summary cards */
 .summary-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 1rem; margin-bottom: 1rem;
 }
 .summary-card {
@@ -401,16 +446,20 @@
 .filter-select, .filter-search {
     padding: 0.4rem 0.75rem; border: 1px solid #d4dae3;
     border-radius: 6px; background: white; font-size: 0.85rem; color: #2c3e50;
+    min-height: 36px;
 }
 .filter-search { margin-left: auto; min-width: 180px; }
 .filter-reset { color: #2563eb; font-size: 0.85rem; text-decoration: none; }
 .filter-reset:hover { text-decoration: underline; }
-    /* Table */
+
+/* Table */
 .table-card {
     background: white; border-radius: 8px; border: 1px solid #e5e9f0;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
 }
-.hk-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.hk-table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 0.88rem; }
 .hk-table th {
     text-align: left; padding: 0.7rem 0.8rem;
     color: #6b7280; font-weight: 600; font-size: 0.78rem;
@@ -424,6 +473,7 @@
 }
 .hk-table tbody tr:hover { background: #f9fafb; }
 .th-check { width: 30px; }
+.hk-table tbody tr[data-room-id] { cursor: context-menu; }
 .cell-num { font-weight: 600; }
 .cat-pill {
     display: inline-block; padding: 0.15rem 0.55rem;
@@ -462,28 +512,22 @@
 .assignee-select option { color: #2c3e50; background: white; }
 .assignee-empty { color: #9ca3af; }
 
-/* Row menu */
-.row-menu { position: relative; }
-.row-menu-btn {
-    background: white; border: 1px solid #d4dae3; padding: 0.2rem 0.6rem;
-    border-radius: 4px; cursor: pointer; color: #5d6d7e;
-}
-.row-menu-list {
-    position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+.row-context-menu {
+    position: fixed; left: 0; top: 0; z-index: 10000;
     background: white; border: 1px solid #e5e9f0; border-radius: 6px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-    min-width: 180px; padding: 0.3rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    min-width: 190px; padding: 0.3rem;
     display: none;
 }
-.row-menu-list.open { display: block; }
-.row-menu-list button, .row-menu-list form button {
+.row-context-menu.open { display: block; }
+.row-context-menu button, .row-context-menu form button {
     display: block; width: 100%; text-align: left;
     padding: 0.45rem 0.7rem; background: none; border: none;
     font-size: 0.85rem; color: #2c3e50; cursor: pointer; border-radius: 4px;
 }
-.row-menu-list button:hover { background: #f3f4f6; }
-.row-menu-list .danger { color: #dc2626; }
-.row-menu-list hr { margin: 0.3rem 0; border: none; border-top: 1px solid #e5e9f0; }
+.row-context-menu button:hover { background: #f3f4f6; }
+.row-context-menu .danger { color: #dc2626; }
+.row-context-menu hr { margin: 0.3rem 0; border: none; border-top: 1px solid #e5e9f0; }
 
 /* Modals */
 .modal .form-control, .modal .form-select {
@@ -493,8 +537,199 @@
 .modal .form-label { font-weight: 600; color: #2c3e50; font-size: 0.85rem; margin-bottom: 0.3rem; }
 
 @media (max-width: 1024px) {
-    .summary-grid { grid-template-columns: 1fr; }
     .tabs-switch { margin-left: 0; }
+}
+
+@media (max-width: 768px) {
+    .hk-container {
+        padding: 1rem 0.75rem;
+    }
+
+    .hk-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .hk-header h1 {
+        font-size: 1.35rem;
+        line-height: 1.2;
+    }
+
+    .hk-date-pill {
+        margin-left: 0;
+        font-size: 0.88rem;
+    }
+
+    .hk-date-tabs,
+    .actions-bar,
+    .filters-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .date-tab,
+    .date-tab-form,
+    .btn-primary,
+    .btn-outline,
+    .filter-select,
+    .filter-search,
+    .filter-reset {
+        width: 100%;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .date-tab-form input[type="date"] {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .summary-card {
+        padding: 0.85rem 1rem;
+    }
+
+    .tabs-switch {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .tab-switch {
+        flex: 1;
+        text-align: center;
+        padding: 0.55rem 0.75rem;
+    }
+
+    .meta-row {
+        line-height: 1.45;
+    }
+
+    .filter-search {
+        margin-left: 0;
+        min-width: 0;
+    }
+
+    .table-card {
+        border: none;
+        background: transparent;
+        overflow: visible;
+    }
+
+    .hk-table {
+        min-width: 0;
+        border-collapse: separate;
+        border-spacing: 0 0.75rem;
+    }
+
+    .hk-table thead {
+        display: none;
+    }
+
+    .hk-table,
+    .hk-table tbody,
+    .hk-table tr,
+    .hk-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .hk-table tr {
+        position: relative;
+        background: white;
+        border: 1px solid #e5e9f0;
+        border-radius: 8px;
+        padding: 0.75rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .hk-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.45rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        min-height: 34px;
+        text-align: right;
+    }
+
+    .hk-table td:last-child {
+        border-bottom: none;
+    }
+
+    .hk-table td::before {
+        content: attr(data-label);
+        flex: 0 0 42%;
+        color: #6b7280;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+        text-align: left;
+    }
+
+    .hk-table td.select-cell {
+        display: none;
+    }
+
+    .hk-table td.select-cell::before {
+        content: none;
+    }
+
+    .hk-table td.cell-num {
+        padding-top: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+    }
+
+    .hk-table td.cell-num::before {
+        font-size: 0.78rem;
+    }
+
+    .occ-pill,
+    .state-pill,
+    .cat-pill {
+        white-space: nowrap;
+    }
+
+    .assignee-select {
+        max-width: 58%;
+        min-width: 0;
+    }
+
+    .empty-cell {
+        display: block !important;
+        text-align: center !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .hk-container {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .summary-row,
+    .hk-table td {
+        font-size: 0.84rem;
+    }
+
+    .hk-table td {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+        text-align: left;
+    }
+
+    .hk-table td::before,
+    .assignee-select {
+        flex-basis: auto;
+        max-width: 100%;
+    }
 }
 </style>
 {% endblock %}

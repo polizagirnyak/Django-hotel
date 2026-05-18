@@ -1,6 +1,8 @@
 from datetime import date
 
 from django import forms
+from django.core.exceptions import ValidationError
+
 from .models import Room, RoomType, Customer, Booking, Payment
 
 
@@ -160,6 +162,26 @@ class BookingEditForm(forms.ModelForm):
 
         # Добавляем подсказки
         self.fields['total_price'].help_text = 'Автоматически рассчитывается при изменении дат или номера'
+
+
+    def clean(self):
+        cleaned_data = super().clean()
+        check_in_date = cleaned_data.get('check_in_date')
+        check_out_date = cleaned_data.get('check_out_date')
+        today = date.today()
+
+        if check_in_date and check_out_date and check_in_date >= check_out_date:
+            raise forms.ValidationError('Дата выезда должна быть позже даты заезда')
+
+        if 'check_in_date' in self.changed_data and check_in_date and check_in_date < today:
+            self.add_error('check_in_date', 'Дата заезда не может быть в прошлом')
+
+        if 'check_out_date' in self.changed_data and check_out_date and check_out_date < today:
+            self.add_error('check_out_date', 'Дата выезда не может быть в прошлом')
+
+        return cleaned_data
+
+
 
 
 class SearchForm(forms.Form):
