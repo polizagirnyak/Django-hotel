@@ -1,9 +1,11 @@
 from django.urls import path
 from . import views
+from . chess_table import ServiceChessTableView
 
 
 urlpatterns = [
     path('', views.services_dashboard, name='services_dashboard'),
+    path('chesstable/', ServiceChessTableView.as_view(), name='service_chesstable'),
     path('categories/', views.service_categories, name='service_categories'),
     path('categories/add/', views.service_category_add, name='service_category_add'),
     path('categories/<int:pk>/edit/', views.service_category_edit, name='service_category_edit'),
