@@ -146,6 +146,7 @@ class ServiceBooking(models.Model):
     ]
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, verbose_name='Клиент', related_name='service_bookings')
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='bookings', verbose_name='Услуга')
+    specialist = models.ForeignKey('ServiceSpecialist', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Специалист', related_name='bookings')
     booking_date = models.DateField(verbose_name='Дата записи')
     start_time = models.TimeField(verbose_name='Время начала')
     end_time = models.TimeField(verbose_name='Время окончания', blank=True, null=True)
@@ -193,6 +194,24 @@ class ServiceBooking(models.Model):
             if not self.pk and booking_datetime <= current_datetime:
                 raise ValidationError('Дата и время записи должны быть в будущем')
 
+        if self.specialist and self.service:
+            if not self.specialist.services.filter(pk=self.service_id).exists():
+                raise ValidationError('Выбранный специалист не оказывает эту услугу')
+
+        if self.specialist and self.booking_date and self.start_time and self.end_time:
+            overlapping = ServiceBooking.objects.filter(
+                specialist = self.specialist,
+                booking_date = self.booking_date,
+                status__in = ['pending', 'confirmed', 'in_progress'],
+                start_time__lt = self.end_time,
+                end_time__gt = self.start_time,
+            )
+            if self.pk:
+                overlapping = overlapping.exclude(pk=self.pk)
+            if overlapping.exists():
+                raise ValidationError('Этот специалист уже занят на выбранное время')
+
+
     def save(self, *args, **kwargs):
         """
         Автоматически рассчитываем время окончания и стоимость
@@ -215,5 +234,62 @@ class ServiceBooking(models.Model):
         return f'Запись #{self.id}: {self.customer} - {self.service.name} ({self.booking_date})'
 
 
+
+class ServiceSpecialist(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='service_specialist',
+        verbose_name='Учетная запись'
+    )
+    services = models.ManyToManyField(
+        Service,
+        related_name='specialists',
+        verbose_name='Услуги'
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Активен')
+    color = models.CharField(max_length=7, default='#6366f1', verbose_name='Цвет шахматки')
+    phone = models.CharField(max_length=20, blank=True, verbose_name='Телефон')
+
+    class Meta:
+        verbose_name = 'Специалист услуг'
+        verbose_name_plural = 'Специалисты услуг'
+        ordering = ['user__last_name', 'user__first_name', 'user__username']
+
+    def get_short_name(self):
+        full_name = self.user.get_full_name().strip()
+        return full_name or self.user.username
+
+    def __str__(self):
+        return self.get_short_name()
+
+
+def find_available_specialist(service, booking_date, start_time, end_time, exclude_booking_id=None):
+    """
+    Возвращает первого активного спецаилиста который оказывает услугу и свободен в указанный интервал
+    Если своб специалистов нет, то возвращает None
+    """
+    if not all([service, booking_date, start_time, end_time]):
+        return None
+
+    specialists = ServiceSpecialist.objects.filter(
+        is_active = True,
+        services = service,
+    ).order_by('user__last_name', 'user__first_name', 'user__username')
+
+    for specialist in specialists:
+        overlapping = ServiceBooking.objects.filter(
+            specialist = specialist,
+            booking_date = booking_date,
+            status__in = ['pending', 'confirmed', 'in_progress'],
+            start_time__lt = end_time,
+            end_time__gt = start_time
+        )
+        if exclude_booking_id:
+            overlapping = overlapping.exclude(pk=exclude_booking_id)
+        if not overlapping.exists():
+            return specialist
+
+    return None
 
 

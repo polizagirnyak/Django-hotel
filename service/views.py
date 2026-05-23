@@ -9,7 +9,10 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db.models import Q
 from datetime import datetime, date, timedelta
-from .models import Service, ServiceCategory, ServiceBooking
+
+from pandas.io.clipboard import is_available
+
+from .models import Service, ServiceCategory, ServiceBooking, find_available_specialist
 from admin_panel.models import Customer, Booking
 from .forms import ServiceForm, ServiceBookingForm, ServiceCategoryForm, ServiceBookingEditForm
 from django.core.paginator import Paginator
@@ -231,17 +234,29 @@ def service_booking_add(request):
             try:
                 booking = form.save(commit=False)
                 booking.created_by = request.user
-                booking.save()
-                messages.success(request, 'Запись на услугу успешно создана')
-
-                #Если создан новый клиент
-                if form.cleaned_data.get('new_customer'):
-                    messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
-                #Проверяем нажата ли кнопка сохранить/добавить еще
-                if 'save_and_new' in request.POST:
-                    return redirect('service_booking_add')
+                start_datetime = datetime.combine(booking.booking_date, booking.start_time)
+                end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
+                booking.end_time = end_datetime.time()
+                booking.specialist = find_available_specialist(
+                    booking.service,
+                    booking.booking_date,
+                    booking.start_time,
+                    booking.end_time
+                )
+                if not booking.specialist:
+                    form.add_error(None, 'На это время нет свободных специалистов для выборанной услуги')
                 else:
-                    return redirect('service_booking_list')
+                    booking.save()
+                    messages.success(request, 'Запись на услугу успешно создана')
+
+                    #Если создан новый клиент
+                    if form.cleaned_data.get('new_customer'):
+                        messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
+                    #Проверяем нажата ли кнопка сохранить/добавить еще
+                    if 'save_and_new' in request.POST:
+                        return redirect('service_booking_add')
+                    else:
+                        return redirect('service_booking_list')
             except ValidationError as e:
                 form.add_error(None, e)
     else:
@@ -334,15 +349,24 @@ def service_booking_edit(request, pk):
         if form.is_valid():
             try:
                 booking = form.save(commit=False)
-                booking.created_by = request.user
+                booking.updated_by = request.user
 
                 start_datetime = datetime.combine(booking.booking_date, booking.start_time)
                 end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
                 booking.end_time = end_datetime.time()
-
-                booking.save()
-                messages.success(request, 'Запись успешно обновлена')
-                return redirect('service_booking_list')
+                booking.specialist = find_available_specialist(
+                    booking.service,
+                    booking.booking_date,
+                    booking.start_time,
+                    booking.end_time,
+                    exclude_booking_id=booking.pk
+                )
+                if not booking.specialist:
+                    form.add_error(None, 'На это время нет специалиста для выбранной услуги')
+                else:
+                    booking.save()
+                    messages.success(request, 'Запись успешно обновлена')
+                    return redirect('service_booking_list')
             except ValidationError as e:
                 form.add_error(None, e)
 
@@ -436,11 +460,21 @@ def customer_service_booking_add(request, customer_id):
             booking = form.save(commit=False)
             booking.customer = customer
             booking.created_by = request.user
-            booking.save()
-
-            messages.success(request, 'Запись на услугу успешно добавлена')
-
-            return redirect('service_booking_list')
+            start_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
+            booking.end_time = end_datetime.time()
+            booking.specialist = find_available_specialist(
+                booking.service,
+                booking.booking_date,
+                booking.start_time,
+                booking.end_time
+            )
+            if not booking.specialist:
+                form.add_error(None, 'На это время нет свободных специалистов для выборанной услуги')
+            else:
+                booking.save()
+                messages.success(request, 'Запись на услугу успешно создана')
+                return redirect('service_booking_list')
     else:
         form = ServiceBookingForm(initial={'customer':customer})
     #Подготавливаем данные об услугах JS
@@ -483,6 +517,15 @@ def check_service_availability(request):
         end_datetime = start_datetime + timedelta(minutes=service.duration)
         end_time_obj = end_datetime.time()
 
+        specialist = find_available_specialist(
+            service,
+            booking_date_obj,
+            start_time_obj,
+            end_time_obj,
+            exclude_booking_id=request.GET.get('exclude_id', None)
+        )
+        is_available = specialist is not None
+
         #Проверяем пересечение существующих записей
         overlapping_bookings = ServiceBooking.objects.filter(
             service = service,
@@ -492,15 +535,14 @@ def check_service_availability(request):
             Q(start_time__lt=end_time_obj, end_time__gt=start_time_obj)
         ).exclude(pk=request.GET.get('exclude_id', None))
 
-        is_available = not overlapping_bookings.exists()
+        #is_available = not overlapping_bookings.exists()
 
         return JsonResponse(
             {
                 'available': is_available,
                 'end_time': end_time_obj.strftime('%H:%M'),
-                'overlapping_bookings': list(
-                    overlapping_bookings.values('id', 'customer__first_name', 'customer__last_name', 'start_time', 'end_time')
-                )
+                'message': '' if is_available else 'На это время нет свободных специалистов для выбранной услуги',
+                'specialist': specialist.get_short_name() if specialist else None,
             }
         )
     except(Service.DoesNotExist, ValueError) as e:

@@ -90,6 +90,7 @@
                             <th width="50">#</th>
                             <th>Клиент</th>
                             <th>Услуга</th>
+                            <th>Специалист</th>
                             <th>Дата и время</th>
                             <th>Участники</th>
                             <th>Стоимость</th>
@@ -113,6 +114,17 @@
                                 <strong>{{ booking.service.name }}</strong>
                                 <br>
                                 <small class="text-muted">{{ booking.service.category.name }}</small>
+                            </td>
+                            <td>
+                                {% if booking.specialist %}
+                                <strong> {{ booking.specialist.get_short_name }} </strong>
+                                {% if booking.specialist.phone %}
+                                <br>
+                                <small class="text-muted">{{ booking.specialist.phone }}</small>
+                                {% endif %}
+                                {% else %}
+                                <span class = 'text-muted'>Не назначен</span>
+                                {% endif %}
                             </td>
                             <td>
                                 <strong>{{ booking.booking_date|date:"d.m.Y" }}</strong>

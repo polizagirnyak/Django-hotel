@@ -101,7 +101,7 @@ class ServiceChessTableView(View):
         rows = self._rows(bookings, category_colors, start_minute)
         active_bookings = [
             booking for booking in bookings
-            if booking.status not in ('canceled', 'no_show')
+            if booking.status not in ('cancelled', 'no_show')
         ]
         busy_minutes = sum(
             max(0, _minutes(booking.end_time) - _minutes(booking.start_time))
@@ -121,6 +121,7 @@ class ServiceChessTableView(View):
             'masters': User.objects.filter(created_service_bookings__isnull=False).distinct().order_by(
                 'last_name', 'first_name', 'username'
             ),
+            'status_choices': ServiceBooking.BOOKING_STATUS,
             'filters': {
                 'master': master_filter,
                 'service': service_filter,
@@ -173,32 +174,59 @@ class ServiceChessTableView(View):
 
     def _rows(self, bookings, category_colors, start_minute):
         grouped = defaultdict(list)
-        users = {}
+        specialists = {}
 
         for booking in bookings:
-            row_key = booking.created_by_id or 'none'
+            row_key = booking.specialist_id or 'none'
             grouped[row_key].append(booking)
-            if booking.created_by_id:
-                users[row_key] = booking.created_by
+            if booking.specialist_id:
+                specialists[row_key] = booking.specialist
 
         rows = []
-        for row_index, row_key in enumerate(grouped.keys()):
-            user = users.get(row_key)
-            row_bookings = grouped[row_key]
+        row_top = 0
+
+        for row_key in grouped.keys():
+            specialist = specialists.get(row_key)
+            row_bookings = sorted(grouped[row_key], key=lambda booking:(booking.start_time, booking.end_time))
             service_names = sorted({booking.service.category.name for booking in row_bookings if booking.service_id})
-            top = row_index * self.ROW_HEIGHT
-            events = [
-                self._event(booking, category_colors, start_minute, top)
-                for booking in row_bookings
-            ]
+            lanes = []
+            events = []
+
+            for booking in row_bookings:
+                start = _minutes(booking.start_time)
+                end = _minutes(booking.end_time)
+                lane_index = None
+
+                for index, lane_end in enumerate(lanes):
+                    if start >= lane_end:
+                        lane_index = index
+                        lanes[index] = end
+                        break
+
+                if lane_index is None:
+                    lane_index = len(lanes)
+                    lanes.append(end)
+
+                events.append(self._event(
+                    booking,
+                    category_colors,
+                    start_minute,
+                    row_top + lane_index * self.ROW_HEIGHT,
+                ))
+
+            height = max(1, len(lanes)) * self.ROW_HEIGHT
             rows.append({
                 'key': row_key,
-                'name': _display_name(user),
+                'name': _display_name(specialist),
                 'subtitle': ', '.join(service_names) if service_names else 'Услуги',
-                'top': top,
+                'top': row_top,
+                'height': height,
                 'events': events,
             })
+            row_top += height
+
         return rows
+
 
     def _event(self, booking, category_colors, start_minute, row_top):
         category_id = booking.service.category_id
@@ -217,9 +245,9 @@ class ServiceChessTableView(View):
             'customer_name': customer_name,
             'service_name': booking.service.name,
             'time_range': f'{booking.start_time:%H:%M} - {booking.end_time:%H:%M}',
-            'left': round(left, 2),
-            'top': row_top + 8,
-            'width': round(width, 2),
+            'left': int(round(left)),
+            'top': int(row_top + 8),
+            'width': int(round(width)),
             'background_color': background_color,
             'border_color': border_color,
             'text_color': text_color,
