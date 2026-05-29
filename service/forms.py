@@ -4,7 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
-from .models import Service, ServiceCategory, ServiceBooking
+from .models import Service, ServiceCategory, ServiceBooking, find_available_specialist
 from admin_panel.models import Customer
 from django.utils import timezone
 from datetime import datetime, date, time
@@ -141,6 +141,7 @@ class ServiceBookingForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        self.available_specialist = None
 
         new_customer = cleaned_data.get('new_customer')
         service = cleaned_data.get('service')
@@ -223,24 +224,26 @@ class ServiceBookingForm(forms.ModelForm):
                 elif participants < 1:
                     self.add_error('participants', "Количество участников должно быть не менее 1")
 
-            # Проверка доступности времени
+            # Проверка доступности специалиста. Несколько клиентов могут записаться
+            # на одну услугу в одно время, если есть несколько свободных специалистов.
             if service and booking_date and start_time and participants:
                 start_datetime = datetime.combine(booking_date, start_time)
                 end_datetime = start_datetime + timezone.timedelta(minutes=service.duration)
                 end_time = end_datetime.time()
 
-                overlapping = ServiceBooking.objects.filter(
-                    service=service,
-                    booking_date=booking_date,
-                    status__in=['confirmed', 'pending', 'in_progress'],
-                ).exclude(pk=self.instance.pk).filter(
-                    Q(start_time__lt=end_time, end_time__gt=start_time)
+                specialist = find_available_specialist(
+                    service,
+                    booking_date,
+                    start_time,
+                    end_time,
+                    exclude_booking_id=self.instance.pk,
                 )
-
-                if overlapping.exists():
+                if not specialist:
                     self.add_error(None,
-                                   "В это время услуга уже забронирована. Выберите другое время."
+                                   "На это время нет свободных специалистов для выбранной услуги."
                                    )
+                else:
+                    self.available_specialist = specialist
 
         return cleaned_data
 
@@ -337,8 +340,30 @@ class ServiceBookingEditForm(forms.ModelForm):
                 today = date.today()
                 self.fields['booking_date'].widget.attrs['min'] = today.isoformat()
 
+    def clean(self):
+        cleaned_data = super().clean()
+        self.available_specialist = None
+        service = cleaned_data.get('service')
+        booking_date = cleaned_data.get('booking_date')
+        start_time = cleaned_data.get('start_time')
 
+        if service and booking_date and start_time:
+            start_datetime = datetime.combine(booking_date, start_time)
+            end_datetime = start_datetime + timezone.timedelta(minutes=service.duration)
+            end_time = end_datetime.time()
+            specialist = find_available_specialist(
+                service,
+                booking_date,
+                start_time,
+                end_time,
+                exclude_booking_id=self.instance.pk,
+            )
+            if not specialist:
+                self.add_error(None, 'На это время нет свободных специалистов для выбранной услуги.')
+            else:
+                self.available_specialist = specialist
 
+        return cleaned_data
 
 
 

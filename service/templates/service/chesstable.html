@@ -43,7 +43,7 @@
             <option value="none" {% if filters.master == 'none' %}selected{% endif %}>Не назначен</option>
             {% for master in masters %}
             <option value="{{ master.id }}" {% if filters.master == master.id|stringformat:'s' %}selected{% endif %}>
-                {% firstof master.get_full_name master.username %}
+                {{ master.get_short_name }}
             </option>
             {% endfor %}
         </select>
@@ -70,14 +70,14 @@
     <div class="schedule-meta">
         Записей: <strong>{{ total_bookings }}</strong>
         · Занято: <strong>{% if busy_hours %}{{ busy_hours }} ч {% endif %}{{ busy_minutes_rest }} мин</strong>
-        · Мастеров: <strong>{{ masters_count }}</strong>
+        · Услуг в таблице: <strong>{{ masters_count }}</strong>
     </div>
 
     <div class="schedule-card">
-        <div class="schedule-scroll">
+        <div class="schedule-scroll" style="--label-width: {{ label_width }}px; --slot-width: {{ slot_width }}px;">
             <div class="schedule-grid" style="width: {{ timeline_width|add:label_width }}px;">
                 <div class="timeline-header" style="width: {{ timeline_width|add:label_width }}px;">
-                    <div class="resource-header" style="width: {{ label_width }}px;">Мастер / Услуга</div>
+                    <div class="resource-header" style="width: {{ label_width }}px;">Услуга / Специалисты</div>
                     <div class="time-header" style="left: {{ label_width }}px; width: {{ timeline_width }}px;">
                         {% for slot in time_slots %}
                         <div class="time-slot" style="left: {{ slot.left }}px;">{{ slot.label }}</div>
@@ -87,18 +87,17 @@
 
                 <div class="schedule-body" style="height: {{ body_height }}px;">
                     {% for row in rows %}
-                    <div class="resource-row" style="top: {{ row.top }}px; height: {{ row_height }}px; width: {{ timeline_width|add:label_width }}px;">
+                    <div class="resource-row" style="top: {{ row.top }}px; height: {{ row.height }}px; width: {{ timeline_width|add:label_width }}px;">
                         <div class="resource-cell" style="width: {{ label_width }}px;">
                             <div class="resource-name">{{ row.name }}</div>
-                            <div class="resource-subtitle">{{ row.subtitle }}</div>
                         </div>
                     </div>
                     {% for event in row.events %}
                     <a class="booking-event"
                        href="{% url 'service_booking_edit' event.booking.id %}"
-                       style="left: {{ event.left }}px; top: {{ event.top }}px; width: {{ event.width }}px; background: {{ event.background_color }}; border-left-color: {{ event.border_color }}; color: {{ event.text_color }};">
+                        style="left: {{ event.left }}px; top: {{ event.top }}px; width: {{ event.width }}px; background: {{ event.background_color }}; border-left-color: {{ event.border_color }}; color: {{ event.text_color }};">
                         <strong>{{ event.customer_name }}</strong>
-                        <span>{{ event.service_name }}</span>
+                        <span>{{ event.specialist_name }}</span>
                         <small>{{ event.time_range }} · №{{ event.booking.id }}</small>
                     </a>
                     {% endfor %}
@@ -132,18 +131,19 @@ body { background: #f8fafc; }
 .schedule-meta { color: #64748b; margin-bottom: 0.9rem; }
 .schedule-meta strong { color: #2c3e50; }
 .schedule-card { background: white; border: 1px solid #e5e9f0; border-radius: 14px; overflow: hidden; }
-.schedule-scroll { overflow: auto; -webkit-overflow-scrolling: touch; }
+.schedule-scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
 .schedule-grid { min-width: 100%; position: relative; }
 .timeline-header { height: 58px; position: sticky; top: 0; z-index: 5; background: #fbfbf7; border-bottom: 1px solid #d7dbe3; }
 .resource-header { position: sticky; left: 0; z-index: 7; height: 58px; display: flex; align-items: center; padding: 0 1.25rem; background: #fbfbf7; font-weight: 600; color: #64748b; border-right: 1px solid #edf1f5; }
 .time-header { position: absolute; top: 0; height: 58px; }
-.time-slot { position: absolute; top: 0; height: 58px; width: 150px; padding-top: 17px; color: #64748b; font-weight: 600; border-left: 1px solid #edf1f5; }
+.time-slot { position: absolute; top: 0; height: 58px; width: var(--slot-width); padding-top: 17px; color: #64748b; font-weight: 600; border-left: 1px solid #edf1f5; font-size: 0.85rem; text-align: center; }
 .schedule-body { position: relative; }
-.resource-row { position: absolute; left: 0; border-bottom: 1px solid #edf1f5; background: linear-gradient(to right, #fff 0, #fff 280px, transparent 280px); }
-.resource-row::after { content: ""; position: absolute; left: 280px; right: 0; top: 0; bottom: 0; background-image: linear-gradient(to right, #edf1f5 1px, transparent 1px); background-size: 150px 100%; pointer-events: none; }
+.resource-row { position: absolute; left: 0; border-bottom: 1px solid #edf1f5; background: linear-gradient(to right, #fff 0, #fff var(--label-width), transparent var(--label-width)); }
+.resource-row::after { content: ""; position: absolute; left: var(--label-width); right: 0; top: 0; bottom: 0; background-image: linear-gradient(to right, #edf1f5 1px, transparent 1px); background-size: var(--slot-width) 100%; pointer-events: none; }
 .resource-cell { position: sticky; left: 0; z-index: 4; height: 100%; background: white; padding: 1.2rem 1.25rem; border-right: 1px solid #edf1f5; }
 .resource-name { font-size: 1.1rem; font-weight: 700; color: #1f2937; }
 .resource-subtitle { margin-top: 0.25rem; color: #7f8c8d; }
+.resource-count { margin-top: 0.4rem; color: #64748b; font-size: 0.85rem; }
 .booking-event { position: absolute; z-index: 3; height: 80px; border-left: 5px solid; border-radius: 8px; padding: 0.65rem 0.8rem; text-decoration: none; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
 .booking-event:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12); color: inherit; }
 .booking-event strong, .booking-event span, .booking-event small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

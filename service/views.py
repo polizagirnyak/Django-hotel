@@ -237,30 +237,36 @@ def service_booking_add(request):
                 start_datetime = datetime.combine(booking.booking_date, booking.start_time)
                 end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
                 booking.end_time = end_datetime.time()
-                booking.specialist = find_available_specialist(
+                booking.specialist = getattr(form, 'available_specialist', None) or find_available_specialist(
                     booking.service,
                     booking.booking_date,
                     booking.start_time,
-                    booking.end_time
+                    booking.end_time,
                 )
                 if not booking.specialist:
-                    form.add_error(None, 'На это время нет свободных специалистов для выборанной услуги')
+                    form.add_error(None, 'На это время нет свободных специалистов для выбранной услуги.')
                 else:
                     booking.save()
+
                     messages.success(request, 'Запись на услугу успешно создана')
 
-                    #Если создан новый клиент
+                    # Если создан новый клиент
                     if form.cleaned_data.get('new_customer'):
                         messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
-                    #Проверяем нажата ли кнопка сохранить/добавить еще
+
+                    # Проверяем, нажата ли кнопка "Сохранить и добавить еще"
                     if 'save_and_new' in request.POST:
                         return redirect('service_booking_add')
                     else:
                         return redirect('service_booking_list')
+
             except ValidationError as e:
                 form.add_error(None, e)
+        # Если форма не валидна, передаем ее обратно с ошибками
     else:
         form = ServiceBookingForm()
+
+        # Инициализация начальных значений
         customer_id = request.GET.get('customer_id')
         if customer_id:
             try:
@@ -277,125 +283,89 @@ def service_booking_add(request):
             except Service.DoesNotExist:
                 pass
 
-    #             #Дополнительная проверка минимального времени
-    #             service = booking.service
-    #             if service.min_booking_hours > 0:
-    #                 booking_datetime =timezone.make_aware(
-    #                     datetime.combine(booking.booking_date, booking.start_time)
-    #                 )
-    #                 min_booking_datetime = timezone.now() + timezone.timedelta(
-    #                     hours = service.min_booking_hours
-    #                 )
-    #                 if booking_datetime < min_booking_datetime:
-    #                     form.add_error(None,
-    #                                    f'Эту услугу можно бронировать не ранее чем за {service.min_booking_hours}'
-    #                                    f'часов. Выберите время после {min_booking_datetime.strftime('%d.%m.%Y %H:%M')}')
-    #                     return render(request, 'service/booking_add.html', context={'form':form, 'title':'Добавить запись на услугу'})
-    #
-    #             booking.save()
-    #
-    #             messages.success(request,'Запись на услугу успешно создана')
-    #
-    #             #Если создан новый клиент
-    #             if form.cleaned_data.get('new_customer'):
-    #                 messages.info(request, f'Новый клиент {booking.customer.get_full_name()} создан')
-    #             return redirect('service_booking_list')
-    #         except ValidationError as e:
-    #             form.add_error(None, str(e))
-    #
-    # else:
-    #     form = ServiceBookingForm()
-    #     #Если передан id клиента
-    #     customer_id = request.GET.get('customer_id')
-    #     if customer_id:
-    #         try:
-    #             customer = Customer.objects.get(pk = customer_id)
-    #             form.fields['customer'].initial = customer
-    #         except Customer.DoesNotExist:
-    #             pass
-    #     #Если передан id услуги
-    #     service_id = request.GET.get('service_id')
-    #     if service_id:
-    #         try:
-    #             service = Service.objects.get(pk = service_id)
-    #             form.fields['service'].initial = service
-    #         except Service.DoesNotExist:
-    #             pass
-    #Подготавливаем данные об услугах JS
+    # Подготавливаем данные об услугах для JavaScript
     services_data = {}
     for service in Service.objects.all():
         services_data[str(service.id)] = {
             'name': service.name,
-            'description': service.short_description,
+            'description': getattr(service, 'short_description', ''),
             'price': float(service.price),
             'duration': service.duration,
             'max_capacity': service.max_capacity,
             'min_booking_hours': service.min_booking_hours
         }
+
     context = {
         'form': form,
         'title': 'Добавить запись на услугу',
         'services_json': json.dumps(services_data)
     }
-    return render(request, template_name='service/service_booking_add.html', context=context)
+    return render(request, 'service/booking_form.html', context)
 
 #Редактирование услуги
 @login_required
 @staff_required
 def service_booking_edit(request, pk):
+    """Редактирование существующей записи на услугу"""
     booking = get_object_or_404(ServiceBooking, pk=pk)
+
     if request.method == 'POST':
         form = ServiceBookingEditForm(request.POST, instance=booking)
         if form.is_valid():
             try:
                 booking = form.save(commit=False)
                 booking.updated_by = request.user
-
                 start_datetime = datetime.combine(booking.booking_date, booking.start_time)
                 end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
                 booking.end_time = end_datetime.time()
-                booking.specialist = find_available_specialist(
+                booking.specialist = getattr(form, 'available_specialist', None) or find_available_specialist(
                     booking.service,
                     booking.booking_date,
                     booking.start_time,
                     booking.end_time,
-                    exclude_booking_id=booking.pk
+                    exclude_booking_id=booking.pk,
                 )
                 if not booking.specialist:
-                    form.add_error(None, 'На это время нет специалиста для выбранной услуги')
+                    form.add_error(None, 'На это время нет свободных специалистов для выбранной услуги.')
                 else:
                     booking.save()
-                    messages.success(request, 'Запись успешно обновлена')
+
+                    messages.success(request, f'Запись #{booking.id} успешно обновлена')
                     return redirect('service_booking_list')
+
             except ValidationError as e:
                 form.add_error(None, e)
-
     else:
+        # Передаем instance, чтобы форма заполнилась существующими данными
         form = ServiceBookingEditForm(instance=booking)
-    #Подготавливаем данные об услугах JS
+
+    # Подготавливаем данные об услугах для JavaScript
     services_data = {}
     for service in Service.objects.all():
         services_data[str(service.id)] = {
             'name': service.name,
-            'description': service.short_description,
+            'description': getattr(service, 'short_description', ''),
             'price': float(service.price),
             'duration': service.duration,
             'max_capacity': service.max_capacity,
             'min_booking_hours': service.min_booking_hours
         }
+
+    # Передаем начальные значения для JavaScript
     initial_service_id = str(booking.service.id) if booking.service else None
     initial_participants = booking.participants
+
     context = {
         'form': form,
+        'booking': booking,
         'title': f'Редактирование записи #{booking.id}',
         'services_json': json.dumps(services_data),
-        'booking': booking,
         'initial_service_id': initial_service_id,
         'initial_participants': initial_participants,
         'initial_date': booking.booking_date.isoformat() if booking.booking_date else '',
-        'initial_time': booking.start_time.strftime('%H:%M') if booking.start_time else ''
+        'initial_time': booking.start_time.strftime('%H:%M') if booking.start_time else '',
     }
-    return render(request, template_name='service/service_booking_edit.html', context=context)
+    return render(request, 'service/booking_edit_form.html', context)
 
 
 @login_required
@@ -453,31 +423,33 @@ def customer_service_bookings(request, customer_id):
 @login_required
 @staff_required
 def customer_service_booking_add(request, customer_id):
-    customer = get_object_or_404(Customer,pk = customer_id)
+    customer = get_object_or_404(Customer, pk=customer_id)
+
     if request.method == 'POST':
         form = ServiceBookingForm(request.POST)
         if form.is_valid():
             booking = form.save(commit=False)
-            booking.customer = customer
+            booking.customer = customer  # Принудительно устанавливаем клиента
             booking.created_by = request.user
             start_datetime = datetime.combine(booking.booking_date, booking.start_time)
             end_datetime = start_datetime + timedelta(minutes=booking.service.duration)
             booking.end_time = end_datetime.time()
-            booking.specialist = find_available_specialist(
+            booking.specialist = getattr(form, 'available_specialist', None) or find_available_specialist(
                 booking.service,
                 booking.booking_date,
                 booking.start_time,
-                booking.end_time
+                booking.end_time,
             )
             if not booking.specialist:
-                form.add_error(None, 'На это время нет свободных специалистов для выборанной услуги')
+                form.add_error(None, 'На это время нет свободных специалистов для выбранной услуги.')
             else:
                 booking.save()
-                messages.success(request, 'Запись на услугу успешно создана')
-                return redirect('service_booking_list')
+                messages.success(request, 'Запись на услугу успешно добавлена')
+                return redirect('customer_service_bookings', customer_id=customer_id)
     else:
-        form = ServiceBookingForm(initial={'customer':customer})
-    #Подготавливаем данные об услугах JS
+        form = ServiceBookingForm(initial={'customer': customer})
+
+    # Подготавливаем данные об услугах для JavaScript
     services_data = {}
     for service in Service.objects.all():
         services_data[str(service.id)] = {
@@ -488,14 +460,14 @@ def customer_service_booking_add(request, customer_id):
             'max_capacity': service.max_capacity,
             'min_booking_hours': service.min_booking_hours
         }
+
     context = {
         'form': form,
         'customer': customer,
         'title': f'Добавить запись на услугу для {customer.get_full_name()}',
         'services_json': json.dumps(services_data)
     }
-
-    return render(request, template_name='service/customer_booking_add.html', context=context)
+    return render(request, 'service/customer_booking_form.html', context)
 
 #Проверка доступности услуги в указанное время
 @login_required
