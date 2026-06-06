@@ -149,19 +149,15 @@
                                 <small class="text-muted">{{ booking.created_by.username }}</small>
                                 {% endif %}
                             </td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'service_booking_edit' booking.pk %}"
-                                       class="btn btn-outline-primary">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <a href="{% url 'service_booking_delete' booking.pk %}"
-                                       class="btn btn-outline-danger"
-                                       onclick="return confirm('Удалить запись?')">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                </div>
-                            </td>
+                           <td>
+    <div class="btn-group btn-group-sm">
+        <a href="{% url 'service_booking_edit' booking.pk %}"
+           class="btn btn-outline-primary">✏️</a>
+        <a href="{% url 'service_booking_delete' booking.pk %}"
+           class="btn btn-outline-danger"
+           onclick="return confirm('Удалить запись?')">🗑️</a>
+    </div>
+</td>
                         </tr>
                         {% endfor %}
                     </tbody>

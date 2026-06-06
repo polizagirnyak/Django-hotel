@@ -242,6 +242,6 @@ class ChessTableView(View):
             'legend_items':     legend_items,
             'filter_params':    filter_params,
         }
-        return render(request, 'admin_panel/chesstable.html', context)
+        return render(request, 'admin_panel/chess_table.html', context)
 
 

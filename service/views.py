@@ -300,7 +300,7 @@ def service_booking_add(request):
         'title': 'Добавить запись на услугу',
         'services_json': json.dumps(services_data)
     }
-    return render(request, 'service/booking_form.html', context)
+    return render(request, 'service/service_booking_add.html', context)
 
 #Редактирование услуги
 @login_required
@@ -365,7 +365,7 @@ def service_booking_edit(request, pk):
         'initial_date': booking.booking_date.isoformat() if booking.booking_date else '',
         'initial_time': booking.start_time.strftime('%H:%M') if booking.start_time else '',
     }
-    return render(request, 'service/booking_edit_form.html', context)
+    return render(request, 'service/service_booking_edit.html', context)
 
 
 @login_required
